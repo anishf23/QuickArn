@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -10,12 +11,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import type { RootStackParamList } from '../../navigation/AppNavigator';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
 const genders = ['Male', 'Female', 'Other'] as const;
 
-function ProfileSetupScreen() {
+type Props = NativeStackScreenProps<RootStackParamList, 'ProfileSetup'>;
+
+function ProfileSetupScreen({ navigation }: Props) {
   const { colors, isDark } = useAppTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -138,6 +142,7 @@ function ProfileSetupScreen() {
 
           <Pressable
             disabled={!canContinue}
+            onPress={() => navigation.navigate('LocationAccess')}
             style={[
               styles.continueButton,
               {
