@@ -4,11 +4,13 @@ import LoginScreen from '../screen/Auth/LoginScreen';
 import LocationAccessScreen from '../screen/Auth/LocationAccessScreen';
 import OTPScreen from '../screen/Auth/OTPScreen';
 import ProfileSetupScreen from '../screen/Auth/ProfileSetupScreen';
+import MainScreen from '../screen/Main/MainScreen';
 import SplashScreen from '../screen/SplashScreen';
 
 export type RootStackParamList = {
   Login: undefined;
   LocationAccess: undefined;
+  Main: { address: string };
   OTP: { phoneNumber: string };
   ProfileSetup: undefined;
   Splash: undefined;
@@ -27,6 +29,7 @@ function AppNavigator() {
       <Stack.Screen name="OTP" component={OTPScreen} />
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="LocationAccess" component={LocationAccessScreen} />
+      <Stack.Screen name="Main" component={MainScreen} />
     </Stack.Navigator>
   );
 }
