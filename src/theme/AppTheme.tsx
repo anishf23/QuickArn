@@ -3,8 +3,8 @@ import { PropsWithChildren, createContext, useContext } from 'react';
 import { useColorScheme } from 'react-native';
 
 export const brandColors = {
-  blue: '#1689ED',
-  navy: '#071A3D',
+  blue: '#7D00F5',
+  navy: '#24263A',
   orange: '#FC6608',
 };
 
@@ -48,7 +48,7 @@ const lightColors: ThemeColors = {
 const darkColors: ThemeColors = {
   background: '#07101F',
   card: '#0E1D35',
-  primary: '#42A5F5',
+  primary: '#A766FF',
   text: '#F8FAFC',
   textMuted: '#A8B4C7',
 };

@@ -5,14 +5,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
 import HomeScreen from './HomeScreen';
+import PostJobScreen from './PostJobScreen';
+import ProfileScreen from './ProfileScreen';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
-type TabName = 'Home' | 'Chat' | 'Profile';
+type TabName = 'Home' | 'Post' | 'Chat' | 'Profile';
 
 const tabs: Array<{ icon: string; name: TabName }> = [
   { icon: '⌂', name: 'Home' },
+  { icon: '+', name: 'Post' },
   { icon: '◌', name: 'Chat' },
   { icon: '◉', name: 'Profile' },
 ];
@@ -24,6 +27,8 @@ function MainScreen({ route }: Props) {
   const content =
     activeTab === 'Home' ? (
       <HomeScreen address={route.params.address} />
+    ) : activeTab === 'Post' ? (
+      <PostJobScreen onBack={() => setActiveTab('Home')} />
     ) : activeTab === 'Chat' ? (
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>Chat</Text>
@@ -31,21 +36,14 @@ function MainScreen({ route }: Props) {
           Your conversations with service professionals will appear here.
         </Text>
       </View>
-    ) : (
-      <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
-        <Text style={[styles.description, { color: colors.textMuted }]}>
-          Manage your QuickArn profile and preferences.
-        </Text>
-      </View>
-    );
+    ) : <ProfileScreen />;
 
   return (
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
-      <View style={styles.content}>{content}</View>
-      <View
+      <View style={[styles.content, activeTab === 'Post' && styles.postContent]}>{content}</View>
+      {activeTab !== 'Post' && <View
         style={[
           styles.tabBar,
           {
@@ -82,7 +80,7 @@ function MainScreen({ route }: Props) {
             </Pressable>
           );
         })}
-      </View>
+      </View>}
     </SafeAreaView>
   );
 }
@@ -91,6 +89,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 0, paddingTop: hp(2) },
   description: { fontSize: rf(16), lineHeight: hp(3), marginTop: hp(1.5) },
   safeArea: { flex: 1 },
+  postContent: { paddingTop: 0 },
   tabBar: {
     borderTopWidth: 1,
     flexDirection: 'row',

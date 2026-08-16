@@ -1,148 +1,95 @@
-import { Image, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
-type HomeScreenProps = {
-  address: string;
-};
+type HomeScreenProps = { address: string };
 
 const stats = [
-  { label: 'Total Earning', value: '₹1450' },
-  { label: 'Jobs Completed', value: '32' },
-  { label: 'Rating', value: '4.5' },
+  { icon: '₹', iconColor: '#18B978', iconSurface: '#E5FAEF', label: 'Total Earning', value: '₹1450' },
+  { icon: '▣', iconColor: brandColors.blue, iconSurface: '#F1E9FF', label: 'Jobs\nCompleted', value: '32' },
+  { icon: '★', iconColor: '#E5AC12', iconSurface: '#FFF8DA', label: 'Rating', value: '4.5' },
 ];
 
 const jobs = [
-  {
-    title: 'Delivery - Documents',
-    area: 'Paldi, Ahmedabad',
-    price: '₹200',
-    distance: '2 km',
-  },
-  {
-    title: 'Cooking - Lunch',
-    area: 'Bodakdev, Ahmedabad',
-    price: '₹300',
-    distance: '3 km',
-  },
+  { title: 'Delivery - Documents', area: 'Paldi, Ahmedabad', price: '₹200', distance: '2 km away' },
+  { title: 'Cooking - Lunch', area: 'Bodakdev, Ahmedabad', price: '₹300', distance: '3 km away' },
 ];
 
+function PersonAvatar() {
+  return <View style={styles.avatarWrap}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></View>;
+}
+
 function HomeScreen({ address }: HomeScreenProps) {
-  const { colors, isDark } = useAppTheme();
+  const { colors } = useAppTheme();
+  const [isOnline, setIsOnline] = useState(true);
 
   return (
-    <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: colors.primary }]}
-      edges={['top']}
-    >
-    
-
-      <View
-        style={[
-          styles.headerRow,
-          { backgroundColor: colors.primary, paddingHorizontal: 0 },
-        ]}
-      >
-        <View style={styles.locationTextWrap}>
-          <View style={styles.locationTitleRow}>
-            <Text style={styles.locationTitle}>Home</Text>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.primary }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.primary }]}>
+        <View>
+          <View style={styles.locationRow}>
+            <Text style={styles.locationPin}>●</Text>
+            <Text numberOfLines={1} style={styles.locationText}>{address || 'Select Location'}</Text>
             <Text style={styles.locationArrow}>⌄</Text>
           </View>
-
-          <Text
-            ellipsizeMode="tail"
-            numberOfLines={1}
-            style={styles.locationText}
-          >
-            {address || 'Ahmedabad, Gujarat'}
-          </Text>
+          <Text style={styles.screenTitle}>Home</Text>
         </View>
-
         <View style={styles.notificationWrap}>
-          <Image
-            source={require('../../../images/bell.png')}
-            style={styles.notificationIcon}
-            resizeMode="contain"
-          />
+          <Image source={require('../../../images/bell.png')} style={styles.notificationIcon} resizeMode="contain" />
         </View>
       </View>
 
-      <View style={styles.container}>
-        
-
-        <View
-          style={[
-          styles.onlineCard,
-          {
-            backgroundColor: isDark ? '#DCEAFB' : '#E9F3FF',
-            borderColor: isDark ? '#DCEAFB' : '#D9EDFF',
-          },
-        ]}
-      >
-        <Text style={[styles.onlineText, { color: colors.text }]}>You are Online</Text>
-
-        <View style={styles.switchTrack}>
-          <View style={styles.switchKnob} />
+      <View style={[styles.content, { backgroundColor: colors.background }]}>
+        <View style={[styles.onlineCard, { backgroundColor: colors.card }]}>
+          <View style={styles.onlineDetails}>
+            <View style={styles.onlineIcon}><Text style={styles.onlinePerson}>●</Text></View>
+            <View>
+              <Text style={[styles.onlineTitle, { color: colors.text }]}>You are {isOnline ? 'Online' : 'Offline'}</Text>
+              <Text style={[styles.onlineSubtitle, { color: colors.textMuted }]}>{isOnline ? 'Ready to receive jobs' : 'Turn on to receive jobs'}</Text>
+            </View>
+          </View>
+          <Pressable
+            accessibilityLabel="Toggle online status"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: isOnline }}
+            onPress={() => setIsOnline(value => !value)}
+            style={[styles.switchTrack, isOnline ? styles.switchTrackOn : styles.switchTrackOff]}
+          >
+            <View style={[styles.switchKnob, isOnline ? styles.switchKnobOn : styles.switchKnobOff]} />
+          </Pressable>
         </View>
-      </View>
 
         <View style={styles.statsRow}>
           {stats.map(stat => (
-            <View
-              key={stat.label}
-              style={[
-              styles.statCard,
-              {
-                backgroundColor: colors.card,
-                borderColor: isDark ? '#334155' : '#E2E8F0',
-              },
-            ]}
-          >
-            <Text style={[styles.statLabel, { color: colors.textMuted }]}>
-              {stat.label}
-            </Text>
-            <Text style={[styles.statValue, { color: colors.text }]}>
-              {stat.value}
-            </Text>
-          </View>
-        ))}
-      </View>
+            <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.card }]}>
+              <View style={[styles.statIcon, { backgroundColor: stat.iconSurface }]}><Text style={[styles.statIconText, { color: stat.iconColor }]}>{stat.icon}</Text></View>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>{stat.label}</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{stat.value}</Text>
+            </View>
+          ))}
+        </View>
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Nearby Jobs</Text>
-          <Text style={[styles.viewAll, { color: brandColors.blue }]}>View All</Text>
+          <Pressable accessibilityRole="button"><Text style={[styles.viewAll, { color: colors.primary }]}>View All</Text></Pressable>
         </View>
 
         <View style={styles.jobsList}>
           {jobs.map(job => (
-            <View
-              key={job.title}
-              style={[
-              styles.jobCard,
-              {
-                backgroundColor: colors.card,
-                borderColor: isDark ? '#334155' : '#E2E8F0',
-              },
-            ]}
-          >
-            <View style={styles.avatarWrap}>
-              <Text style={styles.avatarText}>👤</Text>
-            </View>
-
+            <Pressable key={job.title} style={[styles.jobCard, { backgroundColor: colors.card }]}>
+              <PersonAvatar />
               <View style={styles.jobInfo}>
-                <Text style={[styles.jobTitle, { color: colors.text }]}>
-                  {job.title}
-                </Text>
-                <Text style={[styles.jobArea, { color: colors.textMuted }]}>
-                  {job.area}
-                </Text>
-                <Text style={[styles.jobMeta, { color: colors.text }]}>
-                  {job.price} - {job.distance}
-                </Text>
+                <Text style={[styles.jobTitle, { color: colors.text }]}>{job.title}</Text>
+                <Text style={[styles.jobArea, { color: colors.textMuted }]}>⌖ {job.area}</Text>
+                <View style={styles.jobMetaRow}>
+                  <Text style={[styles.jobPrice, { color: colors.text }]}>{job.price}</Text>
+                  <View style={styles.distanceBadge}><Text style={[styles.distanceText, { color: colors.primary }]}>{job.distance}</Text></View>
+                </View>
               </View>
-            </View>
+            </Pressable>
           ))}
         </View>
       </View>
@@ -151,167 +98,49 @@ function HomeScreen({ address }: HomeScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  avatarText: { fontSize: rf(20) },
-  avatarWrap: {
-    alignItems: 'center',
-    backgroundColor: '#D9D9D9',
-    borderRadius: 28,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#F2F2F2',
-    paddingHorizontal: 10,
-  },
-  safeArea: {
-    flex: 1,
-    backgroundColor: brandColors.blue,
-  },
-  headerRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: hp(2.5),
-    paddingHorizontal: 0,
-    paddingBottom: 6,
-  },
-  jobArea: {
-    fontSize: rf(14),
-    marginTop: 2,
-  },
-  jobCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    marginBottom: 14,
-    padding: 14,
-  },
-  jobInfo: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  jobMeta: {
-    fontSize: rf(15),
-    fontWeight: '700',
-    marginTop: 8,
-  },
-  jobTitle: {
-    fontSize: rf(18),
-    fontWeight: '700',
-  },
-  jobsList: {
-    marginTop: 10,
-  },
-  locationTextWrap: {
-    flex: 1,
-    paddingLeft: 12,
-    paddingRight: 8,
-    paddingVertical: 0,
-  },
-  locationTitleRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    marginBottom: 0,
-  },
-  locationTitle: {
-    color: '#FFFFFF',
-    fontSize: rf(16),
-    fontWeight: '700',
-  },
-  locationText: {
-    color: '#FFFFFF',
-    fontSize: rf(13),
-    fontWeight: '500',
-    marginTop: 2,
-    opacity: 0.96,
-  },
-  locationArrow: {
-    color: '#FFFFFF',
-    fontSize: rf(18),
-    fontWeight: '800',
-    marginLeft: 6,
-    marginTop: -2,
-  },
-  notificationWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: hp(4),
-    height: hp(4),
-  },
-  notificationIcon: {
-    width: hp(3.5),
-    height: hp(3.5),
-    tintColor: '#FFFFFF',
-  },
-  onlineCard: {
-    alignItems: 'center',
-    borderRadius: 18,
-    borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: hp(2.2),
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-  },
-  onlineText: {
-    fontSize: rf(18),
-    fontWeight: '600',
-  },
-  sectionHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: hp(1.5),
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: rf(26),
-    fontWeight: '800',
-  },
-  statCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    flex: 1,
-    marginHorizontal: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    justifyContent:'center',
-    alignItems:'center'
-  },
-  statLabel: {
-    fontSize: rf(11),
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: rf(22),
-    fontWeight: '800',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    marginBottom: hp(2),
-  },
-  switchKnob: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    height: 24,
-    width: 24,
-  },
-  switchTrack: {
-    alignItems: 'center',
-    backgroundColor: brandColors.blue,
-    borderRadius: 16,
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 4,
-    width: 52,
-    height: 30,
-  },
-  viewAll: {
-    fontSize: rf(14),
-    fontWeight: '700',
-  },
+  avatarBody: { backgroundColor: '#A7ADBA', borderRadius: 10, height: 9, marginTop: 3, width: 18 },
+  avatarHead: { backgroundColor: '#A7ADBA', borderRadius: 5, height: 10, width: 10 },
+  avatarWrap: { alignItems: 'center', backgroundColor: '#F2F3F6', borderRadius: 22, height: 44, justifyContent: 'center', width: 44 },
+  content: { flex: 1, paddingHorizontal: 10, paddingTop: 13 },
+  distanceBadge: { backgroundColor: '#F0E8FF', borderRadius: 4, marginLeft: 12, paddingHorizontal: 7, paddingVertical: 2 },
+  distanceText: { fontSize: rf(10), fontWeight: '700' },
+  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 9, paddingHorizontal: 11, paddingTop: 1 },
+  jobArea: { fontSize: rf(11), marginTop: 5 },
+  jobCard: { alignItems: 'center', borderRadius: 12, elevation: 1, flexDirection: 'row', marginBottom: 13, padding: 12, shadowColor: '#64748B', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  jobInfo: { flex: 1, marginLeft: 12 },
+  jobMetaRow: { alignItems: 'center', flexDirection: 'row', marginTop: 7 },
+  jobPrice: { fontSize: rf(12), fontWeight: '800' },
+  jobTitle: { fontSize: rf(13), fontWeight: '700' },
+  jobsList: { marginTop: 1 },
+  locationArrow: { color: '#FFFFFF', fontSize: rf(14), marginLeft: 3, marginTop: -2 },
+  locationPin: { color: '#FFFFFF', fontSize: rf(10), marginRight: 4 },
+  locationRow: { alignItems: 'center', flexDirection: 'row' },
+  locationText: { color: '#FFFFFF', fontSize: rf(11), fontWeight: '500', maxWidth: 180, opacity: 0.92 },
+  notificationIcon: { height: hp(2.8), tintColor: '#FFFFFF', width: hp(2.8) },
+  notificationWrap: { alignItems: 'center', height: hp(4), justifyContent: 'center', width: hp(4) },
+  onlineCard: { alignItems: 'center', borderRadius: 10, elevation: 4, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12, shadowColor: '#5F20B5', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 7 },
+  onlineDetails: { alignItems: 'center', flexDirection: 'row' },
+  onlineIcon: { alignItems: 'center', backgroundColor: '#F0E8FF', borderRadius: 16, height: 32, justifyContent: 'center', marginRight: 9, width: 32 },
+  onlinePerson: { color: brandColors.blue, fontSize: rf(18), lineHeight: rf(18) },
+  onlineSubtitle: { fontSize: rf(9), marginTop: 2 },
+  onlineTitle: { fontSize: rf(14), fontWeight: '800' },
+  safeArea: { flex: 1 },
+  screenTitle: { color: '#FFFFFF', fontSize: rf(18), fontWeight: '800', marginTop: 1 },
+  sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, marginTop: hp(2.4), paddingHorizontal: 2 },
+  sectionTitle: { fontSize: rf(16), fontWeight: '800' },
+  statCard: { alignItems: 'center', borderRadius: 9, elevation: 1, flex: 1, marginHorizontal: 4, minHeight: 96, paddingHorizontal: 4, paddingTop: 12, shadowColor: '#64748B', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 2 },
+  statIcon: { alignItems: 'center', borderRadius: 13, height: 26, justifyContent: 'center', marginBottom: 7, width: 26 },
+  statIconText: { fontSize: rf(13), fontWeight: '900' },
+  statLabel: { fontSize: rf(9), lineHeight: rf(11), minHeight: rf(21), textAlign: 'center' },
+  statValue: { fontSize: rf(14), fontWeight: '800', marginTop: 1 },
+  statsRow: { flexDirection: 'row', marginHorizontal: -4, marginTop: 13 },
+  switchKnob: { backgroundColor: '#FFFFFF', borderRadius: 11, height: 22, width: 22 },
+  switchKnobOff: { transform: [{ translateX: 0 }] },
+  switchKnobOn: { transform: [{ translateX: 18 }] },
+  switchTrack: { borderRadius: 15, height: 28, justifyContent: 'center', paddingHorizontal: 3, width: 46 },
+  switchTrackOff: { backgroundColor: '#CBD5E1' },
+  switchTrackOn: { backgroundColor: brandColors.blue },
+  viewAll: { fontSize: rf(11), fontWeight: '800' },
 });
 
 export default HomeScreen;
