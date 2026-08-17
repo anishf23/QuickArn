@@ -13,7 +13,11 @@ const profileItems = [
   { icon: '?', label: 'Help & Support' },
 ];
 
-function ProfileScreen() {
+type ProfileScreenProps = {
+  onMyBids: () => void;
+};
+
+function ProfileScreen({ onMyBids }: ProfileScreenProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -39,6 +43,7 @@ function ProfileScreen() {
           <Pressable
             key={item.label}
             accessibilityRole="button"
+            onPress={item.label === 'My Bids' ? onMyBids : undefined}
             style={styles.menuItem}
           >
             <Text style={[styles.menuIcon, { color: colors.textMuted }]}>{item.icon}</Text>

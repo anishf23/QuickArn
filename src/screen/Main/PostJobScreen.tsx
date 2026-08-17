@@ -110,6 +110,14 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
               <Text style={[styles.dateIcon, { color: colors.text }]}>□</Text>
               <Text style={[styles.chevron, { color: colors.textMuted }]}>⌄</Text>
             </Pressable>
+
+            <Text style={[styles.fieldLabel, styles.dateLabel, { color: colors.textMuted }]}>Job close Date &amp; Time</Text>
+            <Pressable accessibilityRole="button" style={styles.dateInput}>
+              <Text style={[styles.dateValue, { color: colors.text }]}>24/05/2024, 16:00</Text>
+              <Text style={[styles.dateIcon, { color: colors.text }]}>□</Text>
+              <Text style={[styles.chevron, { color: colors.textMuted }]}>⌄</Text>
+            </Pressable>
+
           </View>
         ) : currentStep === 3 ? (
           <View style={styles.locationForm}>
@@ -166,6 +174,13 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
 
             <View style={styles.reviewRow}>
               <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Date &amp; Time</Text>
+              <View style={styles.reviewValueRow}>
+                <Text style={[styles.reviewValue, { color: colors.text }]}>25 May 2024 • 04:00 PM</Text>
+              </View>
+            </View>
+
+            <View style={styles.reviewRow}>
+              <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Job Close Date &amp; Time</Text>
               <View style={styles.reviewValueRow}>
                 <Text style={[styles.reviewValue, { color: colors.text }]}>25 May 2024 • 04:00 PM</Text>
                 

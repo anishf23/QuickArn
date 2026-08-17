@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
-type HomeScreenProps = { address: string };
+type HomeScreenProps = { address: string; onJobPress: () => void; onViewAll: () => void };
 
 const stats = [
   { icon: '₹', iconColor: '#18B978', iconSurface: '#E5FAEF', label: 'Total Earning', value: '₹1450' },
@@ -22,7 +22,7 @@ function PersonAvatar() {
   return <View style={styles.avatarWrap}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></View>;
 }
 
-function HomeScreen({ address }: HomeScreenProps) {
+function HomeScreen({ address, onJobPress, onViewAll }: HomeScreenProps) {
   const { colors } = useAppTheme();
   const [isOnline, setIsOnline] = useState(true);
 
@@ -37,8 +37,13 @@ function HomeScreen({ address }: HomeScreenProps) {
           </View>
           <Text style={styles.screenTitle}>Home</Text>
         </View>
-        <View style={styles.notificationWrap}>
-          <Image source={require('../../../images/bell.png')} style={styles.notificationIcon} resizeMode="contain" />
+        <View style={styles.headerActions}>
+          <View style={styles.walletWrap}>
+            <Image source={require('../../../images/wallet.png')} style={styles.walletIcon} resizeMode="contain" />
+          </View>
+          <View style={styles.notificationWrap}>
+            <Image source={require('../../../images/bell.png')} style={styles.notificationIcon} resizeMode="contain" />
+          </View>
         </View>
       </View>
 
@@ -74,12 +79,12 @@ function HomeScreen({ address }: HomeScreenProps) {
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Nearby Jobs</Text>
-          <Pressable accessibilityRole="button"><Text style={[styles.viewAll, { color: colors.primary }]}>View All</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={onViewAll}><Text style={[styles.viewAll, { color: colors.primary }]}>View All</Text></Pressable>
         </View>
 
         <View style={styles.jobsList}>
           {jobs.map(job => (
-            <Pressable key={job.title} style={[styles.jobCard, { backgroundColor: colors.card }]}>
+            <Pressable key={job.title} onPress={onJobPress} style={[styles.jobCard, { backgroundColor: colors.card }]}>
               <PersonAvatar />
               <View style={styles.jobInfo}>
                 <Text style={[styles.jobTitle, { color: colors.text }]}>{job.title}</Text>
@@ -105,6 +110,7 @@ const styles = StyleSheet.create({
   distanceBadge: { backgroundColor: '#F0E8FF', borderRadius: 4, marginLeft: 12, paddingHorizontal: 7, paddingVertical: 2 },
   distanceText: { fontSize: rf(10), fontWeight: '700' },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 9, paddingHorizontal: 11, paddingTop: 1 },
+  headerActions: { alignItems: 'center', flexDirection: 'row' },
   jobArea: { fontSize: rf(11), marginTop: 5 },
   jobCard: { alignItems: 'center', borderRadius: 12, elevation: 1, flexDirection: 'row', marginBottom: 13, padding: 12, shadowColor: '#64748B', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   jobInfo: { flex: 1, marginLeft: 12 },
@@ -141,6 +147,8 @@ const styles = StyleSheet.create({
   switchTrackOff: { backgroundColor: '#CBD5E1' },
   switchTrackOn: { backgroundColor: brandColors.blue },
   viewAll: { fontSize: rf(11), fontWeight: '800' },
+  walletIcon: { height: hp(2.7), tintColor: '#FFFFFF', width: hp(2.7) },
+  walletWrap: { alignItems: 'center', height: hp(4), justifyContent: 'center', marginRight: 3, width: hp(4) },
 });
 
 export default HomeScreen;

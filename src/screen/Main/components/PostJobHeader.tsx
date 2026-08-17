@@ -5,9 +5,10 @@ import { rf } from '../../../utils/responsive';
 
 type PostJobHeaderProps = {
   onBack: () => void;
+  title?: string;
 };
 
-function PostJobHeader({ onBack }: PostJobHeaderProps) {
+function PostJobHeader({ onBack, title = 'Post a Job' }: PostJobHeaderProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -25,7 +26,7 @@ function PostJobHeader({ onBack }: PostJobHeaderProps) {
           resizeMode="contain"
         />
       </Pressable>
-      <Text style={[styles.title, { color: colors.text }]}>Post a Job</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
       <View style={styles.spacer} />
     </View>
   );

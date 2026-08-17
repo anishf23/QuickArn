@@ -5,6 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
 import HomeScreen from './HomeScreen';
+import BrowseJobsScreen from './BrowseJobsScreen';
+import JobDetailsScreen from './JobDetailsScreen';
+import PlaceBidScreen from './PlaceBidScreen';
+import MyBidsScreen from './Profile/MyBidsScreen';
+import ChatScreen from './Chat/ChatScreen';
 import PostJobScreen from './PostJobScreen';
 import ProfileScreen from './ProfileScreen';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
@@ -23,27 +28,46 @@ const tabs: Array<{ icon: string; name: TabName }> = [
 function MainScreen({ route }: Props) {
   const { colors, isDark } = useAppTheme();
   const [activeTab, setActiveTab] = useState<TabName>('Home');
+  const [isBrowsingJobs, setIsBrowsingJobs] = useState(false);
+  const [isViewingJobDetails, setIsViewingJobDetails] = useState(false);
+  const [isPlacingBid, setIsPlacingBid] = useState(false);
+  const [isViewingMyBids, setIsViewingMyBids] = useState(false);
 
   const content =
-    activeTab === 'Home' ? (
-      <HomeScreen address={route.params.address} />
+    isViewingMyBids ? (
+      <MyBidsScreen onBack={() => setIsViewingMyBids(false)} />
+    ) : isPlacingBid ? (
+      <PlaceBidScreen
+        onBack={() => setIsPlacingBid(false)}
+        onGoHome={() => {
+          setActiveTab('Home');
+          setIsPlacingBid(false);
+          setIsViewingJobDetails(false);
+        }}
+        onGoToChat={() => {
+          setActiveTab('Chat');
+          setIsPlacingBid(false);
+          setIsViewingJobDetails(false);
+        }}
+      />
+    ) : isViewingJobDetails ? (
+      <JobDetailsScreen onBack={() => setIsViewingJobDetails(false)} onPlaceBid={() => setIsPlacingBid(true)} />
+    ) : isBrowsingJobs ? (
+      <BrowseJobsScreen onBack={() => setIsBrowsingJobs(false)} />
+    ) : activeTab === 'Home' ? (
+      <HomeScreen address={route.params.address} onJobPress={() => setIsViewingJobDetails(true)} onViewAll={() => setIsBrowsingJobs(true)} />
     ) : activeTab === 'Post' ? (
       <PostJobScreen onBack={() => setActiveTab('Home')} />
     ) : activeTab === 'Chat' ? (
-      <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.text }]}>Chat</Text>
-        <Text style={[styles.description, { color: colors.textMuted }]}>
-          Your conversations with service professionals will appear here.
-        </Text>
-      </View>
-    ) : <ProfileScreen />;
+      <ChatScreen onBack={() => setActiveTab('Home')} />
+    ) : <ProfileScreen onMyBids={() => setIsViewingMyBids(true)} />;
 
   return (
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
-      <View style={[styles.content, activeTab === 'Post' && styles.postContent]}>{content}</View>
-      {activeTab !== 'Post' && <View
+      <View style={[styles.content, (activeTab === 'Post' || activeTab === 'Chat' || isBrowsingJobs || isViewingJobDetails || isPlacingBid || isViewingMyBids) && styles.postContent]}>{content}</View>
+      {activeTab !== 'Post' && activeTab !== 'Chat' && !isBrowsingJobs && !isViewingJobDetails && !isPlacingBid && !isViewingMyBids && <View
         style={[
           styles.tabBar,
           {
@@ -58,7 +82,13 @@ function MainScreen({ route }: Props) {
           return (
             <Pressable
               key={tab.name}
-              onPress={() => setActiveTab(tab.name)}
+              onPress={() => {
+                setActiveTab(tab.name);
+                setIsBrowsingJobs(false);
+                setIsViewingJobDetails(false);
+                setIsPlacingBid(false);
+                setIsViewingMyBids(false);
+              }}
               style={styles.tabButton}
             >
               <Text
