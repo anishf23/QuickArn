@@ -4,6 +4,7 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 import PostJobHeader from './components/PostJobHeader';
+import PostLocationDetailsScreen, { type PostLocationMode } from './PostLocationDetailsScreen';
 
 type PostJobScreenProps = {
   onBack: () => void;
@@ -30,6 +31,9 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
   );
   const [budget, setBudget] = useState('200');
   const [isPublished, setIsPublished] = useState(false);
+  const [pickupLocation, setPickupLocation] = useState('Paldi, Ahmedabad');
+  const [dropLocation, setDropLocation] = useState('Satellite, Ahmedabad');
+  const [editingLocation, setEditingLocation] = useState<PostLocationMode | null>(null);
 
   const goBack = () => {
     if (currentStep > 1) {
@@ -48,6 +52,25 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
 
     setCurrentStep(step => Math.min(step + 1, 4));
   };
+
+  if (editingLocation) {
+    const isPickup = editingLocation === 'pickup';
+    return (
+      <PostLocationDetailsScreen
+        initialAddress={isPickup ? pickupLocation : dropLocation}
+        mode={editingLocation}
+        onBack={() => setEditingLocation(null)}
+        onConfirm={address => {
+          if (isPickup) {
+            setPickupLocation(address);
+          } else {
+            setDropLocation(address);
+          }
+          setEditingLocation(null);
+        }}
+      />
+    );
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.card }]}>
@@ -124,14 +147,14 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
             <Text style={[styles.title, { color: colors.text }]}>Location &amp; Budget</Text>
 
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Pickup Location</Text>
-            <Pressable accessibilityRole="button" style={styles.locationInput}>
-              <Text style={[styles.locationValue, { color: colors.text }]}>Paldi, Ahmedabad</Text>
+            <Pressable accessibilityRole="button" onPress={() => setEditingLocation('pickup')} style={styles.locationInput}>
+              <Text numberOfLines={1} style={[styles.locationValue, { color: colors.text }]}>{pickupLocation}</Text>
               <Text style={[styles.locationChevron, { color: colors.textMuted }]}>⌄</Text>
             </Pressable>
 
             <Text style={[styles.fieldLabel, styles.dropLabel, { color: colors.textMuted }]}>Drop Location</Text>
-            <Pressable accessibilityRole="button" style={styles.locationInput}>
-              <Text style={[styles.locationValue, { color: colors.text }]}>Satellite, Ahmedabad</Text>
+            <Pressable accessibilityRole="button" onPress={() => setEditingLocation('drop')} style={styles.locationInput}>
+              <Text numberOfLines={1} style={[styles.locationValue, { color: colors.text }]}>{dropLocation}</Text>
               <Text style={[styles.locationChevron, { color: colors.textMuted }]}>⌄</Text>
             </Pressable>
 
@@ -198,7 +221,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
             <View style={styles.reviewRow}>
               <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Location</Text>
               <View style={styles.reviewValueRow}>
-                <Text style={[styles.reviewValue, styles.locationReviewValue, { color: colors.text }]}>Paldi, Ahmedabad to Satellite, Ahmedabad</Text>
+                <Text style={[styles.reviewValue, styles.locationReviewValue, { color: colors.text }]}>{pickupLocation} to {dropLocation}</Text>
               </View>
             </View>
           </View>

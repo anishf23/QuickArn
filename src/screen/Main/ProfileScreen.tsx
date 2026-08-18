@@ -6,7 +6,7 @@ import { rf } from '../../utils/responsive';
 const profileItems = [
   { icon: '✥', label: 'My Skills' },
   { icon: '▣', label: 'My Portfolio' },
-  { icon: '₹', label: 'Earnings' },
+  { icon: '₹', label: 'My Earnings' },
   { icon: '◇', label: 'My Bids' },
   { icon: '▤', label: 'Wallet' },
   { icon: '⚙', label: 'Settings' },
@@ -15,9 +15,11 @@ const profileItems = [
 
 type ProfileScreenProps = {
   onMyBids: () => void;
+  onMyPortfolio: () => void;
+  onWallet: () => void;
 };
 
-function ProfileScreen({ onMyBids }: ProfileScreenProps) {
+function ProfileScreen({ onMyBids, onMyPortfolio, onWallet }: ProfileScreenProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -43,7 +45,7 @@ function ProfileScreen({ onMyBids }: ProfileScreenProps) {
           <Pressable
             key={item.label}
             accessibilityRole="button"
-            onPress={item.label === 'My Bids' ? onMyBids : undefined}
+            onPress={item.label === 'My Bids' ? onMyBids : item.label === 'My Earnings' ? onMyPortfolio : item.label === 'Wallet' ? onWallet : undefined}
             style={styles.menuItem}
           >
             <Text style={[styles.menuIcon, { color: colors.textMuted }]}>{item.icon}</Text>

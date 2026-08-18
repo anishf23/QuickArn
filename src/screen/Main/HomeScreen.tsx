@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
-type HomeScreenProps = { address: string; onJobPress: () => void; onViewAll: () => void };
+type HomeScreenProps = { address: string; onJobPress: () => void; onLocationPress: () => void; onNotificationPress: () => void; onViewAll: () => void; onWalletPress: () => void };
 
 const stats = [
   { icon: '₹', iconColor: '#18B978', iconSurface: '#E5FAEF', label: 'Total Earning', value: '₹1450' },
@@ -22,28 +22,28 @@ function PersonAvatar() {
   return <View style={styles.avatarWrap}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></View>;
 }
 
-function HomeScreen({ address, onJobPress, onViewAll }: HomeScreenProps) {
+function HomeScreen({ address, onJobPress, onLocationPress, onNotificationPress, onViewAll, onWalletPress }: HomeScreenProps) {
   const { colors } = useAppTheme();
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.primary }]} edges={['top']}>
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
-        <View>
-          <View style={styles.locationRow}>
-            <Text style={styles.locationPin}>●</Text>
+        <View style={styles.headerLocation}>
+          <Pressable accessibilityLabel="Change location" accessibilityRole="button" onPress={onLocationPress} style={styles.locationRow}>
+            <Image source={require('../../../images/marker.png')} style={styles.locationIcon} resizeMode="contain" />
             <Text numberOfLines={1} style={styles.locationText}>{address || 'Select Location'}</Text>
-            <Text style={styles.locationArrow}>⌄</Text>
-          </View>
+            <Image source={require('../../../images/downarrow.png')} style={styles.locationArrow} resizeMode="contain" />
+          </Pressable>
           <Text style={styles.screenTitle}>Home</Text>
         </View>
         <View style={styles.headerActions}>
-          <View style={styles.walletWrap}>
+          <Pressable accessibilityLabel="Open wallet" accessibilityRole="button" onPress={onWalletPress} style={styles.walletWrap}>
             <Image source={require('../../../images/wallet.png')} style={styles.walletIcon} resizeMode="contain" />
-          </View>
-          <View style={styles.notificationWrap}>
+          </Pressable>
+          <Pressable accessibilityLabel="Open notifications" accessibilityRole="button" onPress={onNotificationPress} style={styles.notificationWrap}>
             <Image source={require('../../../images/bell.png')} style={styles.notificationIcon} resizeMode="contain" />
-          </View>
+          </Pressable>
         </View>
       </View>
 
@@ -109,8 +109,9 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 10, paddingTop: 13 },
   distanceBadge: { backgroundColor: '#F0E8FF', borderRadius: 4, marginLeft: 12, paddingHorizontal: 7, paddingVertical: 2 },
   distanceText: { fontSize: rf(10), fontWeight: '700' },
-  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 9, paddingHorizontal: 11, paddingTop: 1 },
+  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 12, paddingHorizontal: 14, paddingTop: 3 },
   headerActions: { alignItems: 'center', flexDirection: 'row' },
+  headerLocation: { flex: 1, paddingRight: 8 },
   jobArea: { fontSize: rf(11), marginTop: 5 },
   jobCard: { alignItems: 'center', borderRadius: 12, elevation: 1, flexDirection: 'row', marginBottom: 13, padding: 12, shadowColor: '#64748B', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   jobInfo: { flex: 1, marginLeft: 12 },
@@ -118,10 +119,10 @@ const styles = StyleSheet.create({
   jobPrice: { fontSize: rf(12), fontWeight: '800' },
   jobTitle: { fontSize: rf(13), fontWeight: '700' },
   jobsList: { marginTop: 1 },
-  locationArrow: { color: '#FFFFFF', fontSize: rf(14), marginLeft: 3, marginTop: -2 },
-  locationPin: { color: '#FFFFFF', fontSize: rf(10), marginRight: 4 },
-  locationRow: { alignItems: 'center', flexDirection: 'row' },
-  locationText: { color: '#FFFFFF', fontSize: rf(11), fontWeight: '500', maxWidth: 180, opacity: 0.92 },
+  locationArrow: { height: 12, marginLeft: 5, tintColor: '#FFFFFF', width: 12 },
+  locationIcon: { height: 13, marginRight: 6, tintColor: '#FFFFFF', width: 13 },
+  locationRow: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', minHeight: 18 },
+  locationText: { color: '#FFFFFF', fontSize: rf(11), fontWeight: '600', maxWidth: 190, opacity: 0.92 },
   notificationIcon: { height: hp(2.8), tintColor: '#FFFFFF', width: hp(2.8) },
   notificationWrap: { alignItems: 'center', height: hp(4), justifyContent: 'center', width: hp(4) },
   onlineCard: { alignItems: 'center', borderRadius: 10, elevation: 4, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12, shadowColor: '#5F20B5', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 7 },
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
   onlineSubtitle: { fontSize: rf(9), marginTop: 2 },
   onlineTitle: { fontSize: rf(14), fontWeight: '800' },
   safeArea: { flex: 1 },
-  screenTitle: { color: '#FFFFFF', fontSize: rf(18), fontWeight: '800', marginTop: 1 },
+  screenTitle: { color: '#FFFFFF', fontSize: rf(19), fontWeight: '800', letterSpacing: 0.1, marginTop: 3 },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, marginTop: hp(2.4), paddingHorizontal: 2 },
   sectionTitle: { fontSize: rf(16), fontWeight: '800' },
   statCard: { alignItems: 'center', borderRadius: 9, elevation: 1, flex: 1, marginHorizontal: 4, minHeight: 96, paddingHorizontal: 4, paddingTop: 12, shadowColor: '#64748B', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 2 },
