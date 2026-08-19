@@ -11,6 +11,8 @@ import PlaceBidScreen from './PlaceBidScreen';
 import MyBidsScreen from './Profile/MyBidsScreen';
 import MyEearningScreen from './Profile/MyEearningScreen';
 import MyWalletScreen from './Profile/MyWalletScreen';
+import VerificationScreen from './Profile/VerificationScreen';
+import EditProfileScreen from './Profile/EditProfileScreen';
 import NotificationScreen from './NotificationScreen';
 import ChatScreen from './Chat/ChatScreen';
 import ChatListScreen from './Chat/ChatListScreen';
@@ -46,9 +48,23 @@ function MainScreen({ route }: Props) {
   const [recentAddresses, setRecentAddresses] = useState<string[]>([]);
   const [isViewingNotifications, setIsViewingNotifications] = useState(false);
   const [isViewingWallet, setIsViewingWallet] = useState(false);
+  const [isVerifyingProfile, setIsVerifyingProfile] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isOnline, setIsOnline] = useState(false);
 
   const content =
-    isViewingNotifications ? (
+    isEditingProfile ? (
+      <EditProfileScreen onBack={() => setIsEditingProfile(false)} />
+    ) : isVerifyingProfile ? (
+      <VerificationScreen
+        onBack={() => setIsVerifyingProfile(false)}
+        onComplete={() => {
+          setIsOnline(true);
+          setIsVerifyingProfile(false);
+          setActiveTab('Home');
+        }}
+      />
+    ) : isViewingNotifications ? (
       <NotificationScreen onBack={() => setIsViewingNotifications(false)} />
     ) : isViewingWallet ? (
       <MyWalletScreen onBack={() => setIsViewingWallet(false)} />
@@ -91,6 +107,8 @@ function MainScreen({ route }: Props) {
     ) : activeTab === 'Home' ? (
       <HomeScreen
         address={selectedAddress}
+        isOnline={isOnline}
+        onAvailabilityPress={() => setIsVerifyingProfile(true)}
         onJobPress={() => setIsViewingJobDetails(true)}
         onLocationPress={() => setIsSelectingLocation(true)}
         onNotificationPress={() => setIsViewingNotifications(true)}
@@ -101,14 +119,14 @@ function MainScreen({ route }: Props) {
       <PostJobScreen onBack={() => setActiveTab('Home')} />
     ) : activeTab === 'Chat' ? (
       isViewingSingleChat ? <ChatScreen onBack={() => setIsViewingSingleChat(false)} /> : <ChatListScreen onOpenChat={() => setIsViewingSingleChat(true)} />
-    ) : <ProfileScreen onMyBids={() => setIsViewingMyBids(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} />;
+    ) : <ProfileScreen onEditProfile={() => setIsEditingProfile(true)} onMyBids={() => setIsViewingMyBids(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} />;
 
   return (
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
-      <View style={[styles.content, (activeTab === 'Post' || isViewingSingleChat || isBrowsingJobs || isViewingJobDetails || isPlacingBid || isViewingMyBids || isViewingMyPortfolio || isSelectingLocation || isViewingNotifications || isViewingWallet) && styles.postContent]}>{content}</View>
-      {activeTab !== 'Post' && !isViewingSingleChat && !isBrowsingJobs && !isViewingJobDetails && !isPlacingBid && !isViewingMyBids && !isViewingMyPortfolio && !isSelectingLocation && !isViewingNotifications && !isViewingWallet && <View
+      <View style={[styles.content, (activeTab === 'Post' || isViewingSingleChat || isBrowsingJobs || isViewingJobDetails || isPlacingBid || isViewingMyBids || isViewingMyPortfolio || isSelectingLocation || isViewingNotifications || isViewingWallet || isVerifyingProfile || isEditingProfile) && styles.postContent]}>{content}</View>
+      {activeTab !== 'Post' && !isViewingSingleChat && !isBrowsingJobs && !isViewingJobDetails && !isPlacingBid && !isViewingMyBids && !isViewingMyPortfolio && !isSelectingLocation && !isViewingNotifications && !isViewingWallet && !isVerifyingProfile && !isEditingProfile && <View
         style={[
           styles.tabBar,
           {
@@ -134,6 +152,8 @@ function MainScreen({ route }: Props) {
                 setIsSelectingLocation(false);
                 setIsViewingNotifications(false);
                 setIsViewingWallet(false);
+                setIsVerifyingProfile(false);
+                setIsEditingProfile(false);
               }}
               style={styles.tabButton}
             >

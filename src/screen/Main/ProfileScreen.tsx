@@ -1,7 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '../../theme/AppTheme';
-import { rf } from '../../utils/responsive';
 
 const profileItems = [
   { icon: '✥', label: 'My Skills' },
@@ -13,17 +12,40 @@ const profileItems = [
   { icon: '?', label: 'Help & Support' },
 ];
 
+const verificationItems = [
+  {
+    icon: '▤',
+    label: 'Verify Aadhaar',
+    detail: 'Verify your identity securely with Aadhaar',
+  },
+  {
+    icon: '▭',
+    label: 'Take a Selfie',
+    detail: 'Required to confirm your identity',
+  },
+  {
+    icon: '〽',
+    label: 'Add Bank Account',
+    detail: 'Add your bank details for secure payments',
+  },
+];
+
 type ProfileScreenProps = {
+  onEditProfile: () => void;
   onMyBids: () => void;
   onMyPortfolio: () => void;
   onWallet: () => void;
 };
 
-function ProfileScreen({ onMyBids, onMyPortfolio, onWallet }: ProfileScreenProps) {
+function ProfileScreen({ onEditProfile, onMyBids, onMyPortfolio, onWallet }: ProfileScreenProps) {
   const { colors } = useAppTheme();
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.card }]}>
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      style={[styles.screen, { backgroundColor: colors.card }]}
+    >
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
           <Text style={styles.avatarInitials}>MJ</Text>
@@ -34,10 +56,27 @@ function ProfileScreen({ onMyBids, onMyPortfolio, onWallet }: ProfileScreenProps
             <Text style={styles.star}>★</Text>
             <Text style={[styles.ratingText, { color: colors.textMuted }]}>4.5 (11 Reviews)</Text>
           </View>
-          <Pressable accessibilityRole="button" style={styles.editButton}>
+          <Pressable accessibilityRole="button" onPress={onEditProfile} style={[styles.editButton, { borderColor: colors.primary }]}>
             <Text style={[styles.editText, { color: colors.primary }]}>Edit Profile</Text>
           </Pressable>
         </View>
+      </View>
+
+      <View style={styles.verificationSection}>
+        <Text style={[styles.verificationHeading, { color: colors.textMuted }]}>VERIFICATION</Text>
+        {verificationItems.map(item => (
+          <Pressable key={item.label} accessibilityRole="button" style={styles.verificationCard}>
+            <View style={styles.verificationIcon}>
+              <Text style={[styles.verificationSymbol, { color: colors.primary }]}>{item.icon}</Text>
+            </View>
+            <View style={styles.verificationCopy}>
+              <Text style={[styles.verificationLabel, { color: colors.text }]}>{item.label}</Text>
+              <Text style={[styles.verificationDetail, { color: colors.textMuted }]}>{item.detail}</Text>
+            </View>
+            <Text style={[styles.verifyText, { color: colors.primary }]}>Verify</Text>
+            <Text style={[styles.verificationArrow, { color: colors.primary }]}>›</Text>
+          </Pressable>
+        ))}
       </View>
 
       <View style={styles.menu}>
@@ -54,27 +93,38 @@ function ProfileScreen({ onMyBids, onMyPortfolio, onWallet }: ProfileScreenProps
           </Pressable>
         ))}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  arrow: { fontSize: rf(24), fontWeight: '300', lineHeight: rf(23) },
-  avatar: { alignItems: 'center', backgroundColor: '#D9E0EA', borderRadius: 28, height: 56, justifyContent: 'center', width: 56 },
-  avatarInitials: { color: '#4B5563', fontSize: rf(16), fontWeight: '800' },
-  editButton: { alignItems: 'center', alignSelf: 'flex-start', borderColor: '#E3D6ED', borderRadius: 5, borderWidth: 1, marginTop: 8, paddingHorizontal: 11, paddingVertical: 5 },
-  editText: { fontSize: rf(11), fontWeight: '700' },
-  menu: { paddingTop: 1 },
-  menuIcon: { fontSize: rf(17), fontWeight: '700', textAlign: 'center', width: 30 },
-  menuItem: { alignItems: 'center', borderBottomColor: '#E5E7EB', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', height: 41, paddingHorizontal: 11 },
-  menuLabel: { flex: 1, fontSize: rf(12), fontWeight: '500', marginLeft: 8 },
-  name: { fontSize: rf(18), fontWeight: '800' },
-  profileDetails: { flex: 1, marginLeft: 11 },
-  profileHeader: { alignItems: 'center', borderBottomColor: '#E5E7EB', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', paddingBottom: 19, paddingHorizontal: 12, paddingTop: 13 },
+  arrow: { fontSize: 24, fontWeight: '300', lineHeight: 23 },
+  avatar: { alignItems: 'center', backgroundColor: '#E5E0FF', borderRadius: 41, height: 82, justifyContent: 'center', width: 82 },
+  avatarInitials: { color: '#665C78', fontSize: 15, fontWeight: '700' },
+  editButton: { alignItems: 'center', borderRadius: 20, borderWidth: 1.5, marginTop: 10, paddingHorizontal: 18, paddingVertical: 8 },
+  editText: { fontSize: 11, fontWeight: '700' },
+  menu: { paddingHorizontal: 18, paddingTop: 19 },
+  menuIcon: { fontSize: 16, fontWeight: '700', textAlign: 'center', width: 26 },
+  menuItem: { alignItems: 'center', borderBottomColor: '#E9E2EE', borderBottomWidth: 1, flexDirection: 'row', height: 48, paddingHorizontal: 6 },
+  menuLabel: { flex: 1, fontSize: 13, fontWeight: '600', marginLeft: 10 },
+  name: { fontSize: 16, fontWeight: '800' },
+  profileDetails: { alignItems: 'center', marginTop: 12 },
+  profileHeader: { alignItems: 'center', paddingBottom: 20, paddingTop: 27 },
   ratingRow: { alignItems: 'center', flexDirection: 'row', marginTop: 4 },
-  ratingText: { fontSize: rf(10), marginLeft: 4 },
+  ratingText: { fontSize: 10, marginLeft: 4 },
   screen: { flex: 1 },
-  star: { color: '#7D00F5', fontSize: rf(11) },
+  scrollContent: { paddingBottom: 24 },
+  star: { color: '#7D00F5', fontSize: 11 },
+  verificationArrow: { fontSize: 20, lineHeight: 18, marginLeft: 5 },
+  verificationCard: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E4D9EB', borderRadius: 10, borderWidth: 1, flexDirection: 'row', marginTop: 7, minHeight: 68, paddingHorizontal: 13 },
+  verificationCopy: { flex: 1, marginLeft: 9 },
+  verificationDetail: { fontSize: 9, lineHeight: 12, marginTop: 2 },
+  verificationHeading: { fontSize: 10, fontWeight: '800', marginLeft: 6 },
+  verificationIcon: { alignItems: 'center', backgroundColor: '#EEE8FF', borderRadius: 18, height: 36, justifyContent: 'center', width: 36 },
+  verificationLabel: { fontSize: 11, fontWeight: '700' },
+  verificationSection: { paddingHorizontal: 18, paddingTop: 4 },
+  verificationSymbol: { fontSize: 14, fontWeight: '800' },
+  verifyText: { fontSize: 9, fontWeight: '800' },
 });
 
 export default ProfileScreen;

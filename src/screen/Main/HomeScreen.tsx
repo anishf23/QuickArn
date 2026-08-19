@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
-type HomeScreenProps = { address: string; onJobPress: () => void; onLocationPress: () => void; onNotificationPress: () => void; onViewAll: () => void; onWalletPress: () => void };
+type HomeScreenProps = { address: string; isOnline: boolean; onAvailabilityPress: () => void; onJobPress: () => void; onLocationPress: () => void; onNotificationPress: () => void; onViewAll: () => void; onWalletPress: () => void };
 
 const stats = [
   { icon: '₹', iconColor: '#18B978', iconSurface: '#E5FAEF', label: 'Total Earning', value: '₹1450' },
@@ -22,9 +21,8 @@ function PersonAvatar() {
   return <View style={styles.avatarWrap}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></View>;
 }
 
-function HomeScreen({ address, onJobPress, onLocationPress, onNotificationPress, onViewAll, onWalletPress }: HomeScreenProps) {
+function HomeScreen({ address, isOnline, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onViewAll, onWalletPress }: HomeScreenProps) {
   const { colors } = useAppTheme();
-  const [isOnline, setIsOnline] = useState(false);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.primary }]} edges={['top']}>
@@ -60,7 +58,7 @@ function HomeScreen({ address, onJobPress, onLocationPress, onNotificationPress,
             accessibilityLabel="Toggle online status"
             accessibilityRole="switch"
             accessibilityState={{ checked: isOnline }}
-            onPress={() => setIsOnline(value => !value)}
+            onPress={onAvailabilityPress}
             style={[styles.switchTrack, isOnline ? styles.switchTrackOn : styles.switchTrackOff]}
           >
             <View style={[styles.switchKnob, isOnline ? styles.switchKnobOn : styles.switchKnobOff]} />
