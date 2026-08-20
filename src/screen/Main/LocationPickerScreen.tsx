@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, Modal, PermissionsAndroid, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Geolocation, { PositionError } from 'react-native-geolocation-service';
 
@@ -42,6 +43,9 @@ const nominatimHeaders = {
   'User-Agent': 'QuickArn/1.0',
 };
 
+const SAVED_ADDRESSES_STORAGE_KEY = '@quickarn/saved-addresses';
+const RECENT_ADDRESSES_STORAGE_KEY = '@quickarn/recent-addresses';
+
 function getDistrictAndCountry(result: NominatimResult) {
   const district =
     result.address?.city_district ||
@@ -59,7 +63,7 @@ function getDistrictAndCountry(result: NominatimResult) {
 function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveAddress, onSelectLocation }: LocationPickerScreenProps) {
   const { colors } = useAppTheme();
   const primaryActionColor = { color: colors.primary };
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<NominatimResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -67,6 +71,37 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
   const [locationError, setLocationError] = useState('');
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [pendingSavedAddress, setPendingSavedAddress] = useState<string | null>(null);
+  const [storedAddresses, setStoredAddresses] = useState<SavedAddress[]>([]);
+  const [storedRecentAddresses, setStoredRecentAddresses] = useState<string[]>([]);
+
+  const allSavedAddresses = [...savedAddresses, ...storedAddresses.filter(stored => !savedAddresses.some(address => address.label === stored.label))];
+  const allRecentAddresses = [...new Set([...recentAddresses, ...storedRecentAddresses])].slice(0, 5);
+
+  useEffect(() => {
+    const restoreLocationStorage = async () => {
+      try {
+        const [savedValue, recentValue] = await Promise.all([
+          AsyncStorage.getItem(SAVED_ADDRESSES_STORAGE_KEY),
+          AsyncStorage.getItem(RECENT_ADDRESSES_STORAGE_KEY),
+        ]);
+        const restoredSavedAddresses = savedValue ? JSON.parse(savedValue) : [];
+        const restoredRecentAddresses = recentValue ? JSON.parse(recentValue) : [];
+
+        if (Array.isArray(restoredSavedAddresses)) {
+          setStoredAddresses(restoredSavedAddresses.filter((item): item is SavedAddress => (
+            typeof item?.address === 'string' && (item.label === 'Home' || item.label === 'Work')
+          )));
+        }
+        if (Array.isArray(restoredRecentAddresses)) {
+          setStoredRecentAddresses(restoredRecentAddresses.filter((item): item is string => typeof item === 'string').slice(0, 5));
+        }
+      } catch {
+        // A storage read failure should not prevent location search from working.
+      }
+    };
+
+    restoreLocationStorage().catch(() => {});
+  }, []);
 
   useEffect(() => {
     const normalizedQuery = query.trim();
@@ -176,10 +211,19 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
     selectAddress(address);
   };
 
-  const selectAddress = (address: string) => {
+  const rememberRecentAddress = (address: string) => {
+    const nextRecentAddresses = [address, ...allRecentAddresses.filter(item => item !== address)].slice(0, 5);
+    setStoredRecentAddresses(nextRecentAddresses);
+    AsyncStorage.setItem(RECENT_ADDRESSES_STORAGE_KEY, JSON.stringify(nextRecentAddresses)).catch(() => {});
+  };
+
+  const selectAddress = (address: string, saveAsRecent = true) => {
     if (isSavingAddress) {
       setPendingSavedAddress(address);
       return;
+    }
+    if (saveAsRecent) {
+      rememberRecentAddress(address);
     }
     onSelectLocation(address);
   };
@@ -189,9 +233,15 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
       return;
     }
 
-    onSaveAddress({ address: pendingSavedAddress, label });
+    const savedAddress = { address: pendingSavedAddress, label };
+    const nextSavedAddresses = [savedAddress, ...allSavedAddresses.filter(item => item.label !== label)];
+
+    setStoredAddresses(nextSavedAddresses);
+    AsyncStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, JSON.stringify(nextSavedAddresses)).catch(() => {});
+    onSaveAddress(savedAddress);
     onSelectLocation(pendingSavedAddress);
     setPendingSavedAddress(null);
+    setIsSavingAddress(false);
   };
 
   const isShowingSearchResults = query.trim().length >= 3;
@@ -228,8 +278,8 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
             </Pressable>
           </View>
           <Text style={styles.savedAddressesTitle}>SAVED ADDRESSES</Text>
-          {savedAddresses.map(savedAddress => (
-            <Pressable key={savedAddress.label} accessibilityRole="button" onPress={() => onSelectLocation(savedAddress.address)} style={[styles.addressRow, { backgroundColor: colors.card }]}>
+          {allSavedAddresses.map(savedAddress => (
+            <Pressable key={savedAddress.label} accessibilityRole="button" onPress={() => selectAddress(savedAddress.address, false)} style={[styles.addressRow, { backgroundColor: colors.card }]}>
               <Text style={[styles.addressPin, primaryActionColor]}>●</Text>
               <View style={styles.addressTextWrap}>
                 <Text style={[styles.addressLabel, { color: colors.text }]}>{savedAddress.label}</Text>
@@ -237,11 +287,11 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
               </View>
             </Pressable>
           ))}
-          {savedAddresses.length === 0 && <Text style={[styles.emptySavedText, { color: colors.textMuted }]}>No saved addresses yet.</Text>}
-          {recentAddresses.length > 0 && <>
+          {allSavedAddresses.length === 0 && <Text style={[styles.emptySavedText, { color: colors.textMuted }]}>No saved addresses yet.</Text>}
+          {allRecentAddresses.length > 0 && <>
             <Text style={styles.recentTitle}>RECENT SEARCHES</Text>
-            {recentAddresses.map(address => (
-              <Pressable key={address} accessibilityRole="button" onPress={() => onSelectLocation(address)} style={[styles.addressRow, { backgroundColor: colors.card }]}>
+            {allRecentAddresses.map(address => (
+              <Pressable key={address} accessibilityRole="button" onPress={() => selectAddress(address, false)} style={[styles.addressRow, { backgroundColor: colors.card }]}>
                 <Text style={[styles.addressPin, { color: colors.textMuted }]}>◷</Text>
                 <Text numberOfLines={1} style={[styles.addressText, { color: colors.text }]}>{address}</Text>
               </Pressable>
@@ -290,7 +340,7 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
                 <Text style={[styles.saveOptionText, { color: colors.primary }]}>Work</Text>
               </Pressable>
             </View>
-            <Pressable accessibilityRole="button" onPress={() => setPendingSavedAddress(null)} style={styles.cancelButton}>
+            <Pressable accessibilityRole="button" onPress={() => { setPendingSavedAddress(null); setIsSavingAddress(false); }} style={styles.cancelButton}>
               <Text style={[styles.cancelText, { color: colors.textMuted }]}>Cancel</Text>
             </Pressable>
           </View>

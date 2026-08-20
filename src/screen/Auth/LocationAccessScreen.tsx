@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
-import { hp, rf, wp } from '../../utils/responsive';
 
 type LocationPhase = 'intro' | 'fetching' | 'success' | 'error';
 
@@ -242,53 +241,54 @@ function LocationAccessScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   animationArea: {
     alignItems: 'center',
-    height: hp(40),
+    height: 250,
     justifyContent: 'center',
+    marginTop: 30,
   },
   content: { flex: 1, paddingHorizontal: 28 },
   description: {
-    fontSize: rf(16),
-    lineHeight: hp(3),
-    marginTop: hp(1.8),
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 10,
     textAlign: 'center',
   },
   mapCircle: {
     alignItems: 'center',
-    borderRadius: hp(13.5),
-    height: hp(27),
+    borderRadius: 72,
+    height: 144,
     justifyContent: 'center',
-    width: hp(27),
+    width: 144,
   },
   outerRing: {
-    borderRadius: wp(48),
+    borderRadius: 112,
     borderWidth: 2,
-    height: wp(96),
+    height: 224,
     position: 'absolute',
-    width: wp(96),
+    width: 224,
   },
   pin: {
     alignItems: 'center',
     backgroundColor: brandColors.orange,
-    borderRadius: hp(5),
-    height: hp(10),
+    borderRadius: 32,
+    height: 64,
     justifyContent: 'center',
-    width: hp(10),
+    width: 64,
   },
   pinDot: {
     backgroundColor: '#FFFFFF',
-    borderRadius: hp(1.6),
-    height: hp(3.2),
-    width: hp(3.2),
+    borderRadius: 10,
+    height: 20,
+    width: 20,
   },
   pulseRing: {
-    borderRadius: wp(36),
+    borderRadius: 84,
     borderWidth: 2,
-    height: wp(72),
+    height: 168,
     position: 'absolute',
-    width: wp(72),
+    width: 168,
   },
   safeArea: { flex: 1 },
-  title: { fontSize: rf(28), fontWeight: '800', textAlign: 'center' },
+  title: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
 });
 
 export default LocationAccessScreen;

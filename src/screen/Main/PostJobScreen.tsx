@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
@@ -9,6 +10,8 @@ import PostLocationDetailsScreen, { type PostLocationMode } from './PostLocation
 type PostJobScreenProps = {
   onBack: () => void;
 };
+
+type DatePickerTarget = 'job' | 'close' | null;
 
 const categories = [
   { icon: '▰', name: 'Delivery' },
@@ -21,6 +24,22 @@ const categories = [
   { icon: '+', name: 'More' },
 ];
 
+const priorities = [
+  { label: 'High', activeBackground: '#FEE2E2', activeBorder: '#EF4444', activeText: '#DC2626' },
+  { label: 'Medium', activeBackground: '#FEF3C7', activeBorder: '#F59E0B', activeText: '#B45309' },
+  { label: 'Low', activeBackground: '#DCFCE7', activeBorder: '#22C55E', activeText: '#15803D' },
+] as const;
+
+const formatDateTime = (value: Date) => {
+  const day = String(value.getDate()).padStart(2, '0');
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const year = value.getFullYear();
+  const hours = String(value.getHours()).padStart(2, '0');
+  const minutes = String(value.getMinutes()).padStart(2, '0');
+
+  return `${day}/${month}/${year}, ${hours}:${minutes}`;
+};
+
 function PostJobScreen({ onBack }: PostJobScreenProps) {
   const { colors } = useAppTheme();
   const [currentStep, setCurrentStep] = useState(1);
@@ -30,6 +49,11 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
     'Need a person to pickup documents from Paldi and deliver to Satellite area.',
   );
   const [budget, setBudget] = useState('200');
+  const [priority, setPriority] = useState<(typeof priorities)[number]['label']>('Medium');
+  const [jobDateTime, setJobDateTime] = useState(new Date(2024, 4, 24, 16, 0));
+  const [closeDateTime, setCloseDateTime] = useState(new Date(2024, 4, 24, 16, 0));
+  const [datePickerTarget, setDatePickerTarget] = useState<DatePickerTarget>(null);
+  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
   const [isPublished, setIsPublished] = useState(false);
   const [pickupLocation, setPickupLocation] = useState('Paldi, Ahmedabad');
   const [dropLocation, setDropLocation] = useState('Satellite, Ahmedabad');
@@ -51,6 +75,39 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
     }
 
     setCurrentStep(step => Math.min(step + 1, 4));
+  };
+
+  const openDateTimePicker = (target: Exclude<DatePickerTarget, null>) => {
+    setDatePickerTarget(target);
+    setPickerMode('date');
+  };
+
+  const handleDateTimeChange = (_event: unknown, selectedValue?: Date) => {
+    if (!selectedValue || !datePickerTarget) {
+      setDatePickerTarget(null);
+      return;
+    }
+
+    const currentValue = datePickerTarget === 'job' ? jobDateTime : closeDateTime;
+    const nextValue = new Date(selectedValue);
+
+    if (pickerMode === 'date') {
+      nextValue.setHours(currentValue.getHours(), currentValue.getMinutes());
+      if (datePickerTarget === 'job') {
+        setJobDateTime(nextValue);
+      } else {
+        setCloseDateTime(nextValue);
+      }
+      setPickerMode('time');
+      return;
+    }
+
+    if (datePickerTarget === 'job') {
+      setJobDateTime(nextValue);
+    } else {
+      setCloseDateTime(nextValue);
+    }
+    setDatePickerTarget(null);
   };
 
   if (editingLocation) {
@@ -128,18 +185,46 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
             />
 
             <Text style={[styles.fieldLabel, styles.dateLabel, { color: colors.textMuted }]}>Date &amp; Time</Text>
-            <Pressable accessibilityRole="button" style={styles.dateInput}>
-              <Text style={[styles.dateValue, { color: colors.text }]}>24/05/2024, 16:00</Text>
+            <Pressable accessibilityRole="button" onPress={() => openDateTimePicker('job')} style={styles.dateInput}>
+              <Text style={[styles.dateValue, { color: colors.text }]}>{formatDateTime(jobDateTime)}</Text>
               <Text style={[styles.dateIcon, { color: colors.text }]}>□</Text>
               <Text style={[styles.chevron, { color: colors.textMuted }]}>⌄</Text>
             </Pressable>
 
             <Text style={[styles.fieldLabel, styles.dateLabel, { color: colors.textMuted }]}>Job close Date &amp; Time</Text>
-            <Pressable accessibilityRole="button" style={styles.dateInput}>
-              <Text style={[styles.dateValue, { color: colors.text }]}>24/05/2024, 16:00</Text>
+            <Pressable accessibilityRole="button" onPress={() => openDateTimePicker('close')} style={styles.dateInput}>
+              <Text style={[styles.dateValue, { color: colors.text }]}>{formatDateTime(closeDateTime)}</Text>
               <Text style={[styles.dateIcon, { color: colors.text }]}>□</Text>
               <Text style={[styles.chevron, { color: colors.textMuted }]}>⌄</Text>
             </Pressable>
+
+            <Text style={[styles.fieldLabel, styles.priorityLabel, { color: colors.textMuted }]}>Job Priority</Text>
+            <View style={styles.priorityRow}>
+              {priorities.map(option => {
+                const selected = priority === option.label;
+
+                return (
+                  <Pressable
+                    key={option.label}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    onPress={() => setPriority(option.label)}
+                    style={[
+                      styles.priorityOption,
+                      {
+                        backgroundColor: selected ? option.activeBackground : '#F8F8FA',
+                        borderColor: selected ? option.activeBorder : '#E3E5E8',
+                      },
+                    ]}
+                  >
+                    <View style={[styles.priorityRadio, { borderColor: selected ? option.activeBorder : '#9CA3AF' }]}>
+                      {selected && <View style={[styles.priorityDot, { backgroundColor: option.activeBorder }]} />}
+                    </View>
+                    <Text style={[styles.priorityText, { color: selected ? option.activeText : colors.textMuted }]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
 
           </View>
         ) : currentStep === 3 ? (
@@ -198,15 +283,29 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
             <View style={styles.reviewRow}>
               <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Date &amp; Time</Text>
               <View style={styles.reviewValueRow}>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>25 May 2024 • 04:00 PM</Text>
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{formatDateTime(jobDateTime)}</Text>
               </View>
             </View>
 
             <View style={styles.reviewRow}>
               <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Job Close Date &amp; Time</Text>
               <View style={styles.reviewValueRow}>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>25 May 2024 • 04:00 PM</Text>
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{formatDateTime(closeDateTime)}</Text>
                 
+              </View>
+            </View>
+
+            <View style={styles.reviewRow}>
+              <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Job Priority</Text>
+              <View style={styles.reviewValueRow}>
+                {(() => {
+                  const selectedPriority = priorities.find(item => item.label === priority)!;
+                  return (
+                    <View style={[styles.priorityBadge, { backgroundColor: selectedPriority.activeBackground }]}>
+                      <Text style={[styles.priorityBadgeText, { color: selectedPriority.activeText }]}>{priority}</Text>
+                    </View>
+                  );
+                })()}
               </View>
             </View>
 
@@ -231,6 +330,15 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
       <Pressable accessibilityRole="button" onPress={goToNextStep} style={[styles.nextButton, { backgroundColor: colors.primary }]}> 
         <Text style={styles.nextLabel}>{currentStep === 4 ? 'Publish Job' : 'Next'}</Text>
       </Pressable>
+
+      {datePickerTarget && (
+        <DateTimePicker
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          mode={pickerMode}
+          onChange={handleDateTimeChange}
+          value={datePickerTarget === 'job' ? jobDateTime : closeDateTime}
+        />
+      )}
 
       <Modal animationType="fade" transparent visible={isPublished}>
         <View style={styles.successBackdrop}>
@@ -317,6 +425,14 @@ const styles = StyleSheet.create({
   progressPending: { backgroundColor: '#E5E7EB' },
   progressSegment: { borderRadius: 10, flex: 1, height: 3, marginHorizontal: 3 },
   progressTrack: { flexDirection: 'row', paddingHorizontal: 5, paddingTop: 8 },
+  priorityDot: { borderRadius: 4, height: 8, width: 8 },
+  priorityBadge: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  priorityBadgeText: { fontSize: rf(10), fontWeight: '800' },
+  priorityLabel: { marginTop: 17 },
+  priorityOption: { alignItems: 'center', borderRadius: 7, borderWidth: 1, flex: 1, flexDirection: 'row', height: 38, justifyContent: 'center', marginHorizontal: 3 },
+  priorityRadio: { alignItems: 'center', borderRadius: 8, borderWidth: 1.2, height: 16, justifyContent: 'center', marginRight: 6, width: 16 },
+  priorityRow: { flexDirection: 'row', marginHorizontal: -3 },
+  priorityText: { fontSize: rf(10), fontWeight: '700' },
   screen: { flex: 1 },
   title: { fontSize: rf(16), fontWeight: '800', textAlign: 'center' },
 });

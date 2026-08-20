@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
-type HomeScreenProps = { address: string; isOnline: boolean; onAvailabilityPress: () => void; onJobPress: () => void; onLocationPress: () => void; onNotificationPress: () => void; onViewAll: () => void; onWalletPress: () => void };
+type HomeScreenProps = { address: string; isOnline: boolean; onAvailabilityPress: () => void; onJobPress: () => void; onLocationPress: () => void; onNotificationPress: () => void; onProfilePress: () => void; onViewAll: () => void; onWalletPress: () => void };
 
 const stats = [
   { icon: '₹', iconColor: '#18B978', iconSurface: '#E5FAEF', label: 'Total Earning', value: '₹1450' },
@@ -17,11 +17,11 @@ const jobs = [
   { title: 'Cooking - Lunch', area: 'Bodakdev, Ahmedabad', price: '₹300', distance: '3 km away' },
 ];
 
-function PersonAvatar() {
-  return <View style={styles.avatarWrap}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></View>;
+function PersonAvatar({ onPress }: { onPress: () => void }) {
+  return <Pressable accessibilityLabel="Open provider profile" accessibilityRole="button" hitSlop={5} onPress={onPress} style={styles.avatarWrap}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></Pressable>;
 }
 
-function HomeScreen({ address, isOnline, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onViewAll, onWalletPress }: HomeScreenProps) {
+function HomeScreen({ address, isOnline, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onProfilePress, onViewAll, onWalletPress }: HomeScreenProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -82,17 +82,17 @@ function HomeScreen({ address, isOnline, onAvailabilityPress, onJobPress, onLoca
 
         <View style={styles.jobsList}>
           {jobs.map(job => (
-            <Pressable key={job.title} onPress={onJobPress} style={[styles.jobCard, { backgroundColor: colors.card }]}>
-              <PersonAvatar />
-              <View style={styles.jobInfo}>
+            <View key={job.title} style={[styles.jobCard, { backgroundColor: colors.card }]}>
+              <PersonAvatar onPress={onProfilePress} />
+              <Pressable accessibilityRole="button" onPress={onJobPress} style={styles.jobInfo}>
                 <Text style={[styles.jobTitle, { color: colors.text }]}>{job.title}</Text>
                 <Text style={[styles.jobArea, { color: colors.textMuted }]}>⌖ {job.area}</Text>
                 <View style={styles.jobMetaRow}>
                   <Text style={[styles.jobPrice, { color: colors.text }]}>{job.price}</Text>
                   <View style={styles.distanceBadge}><Text style={[styles.distanceText, { color: colors.primary }]}>{job.distance}</Text></View>
                 </View>
-              </View>
-            </Pressable>
+              </Pressable>
+            </View>
           ))}
         </View>
       </View>

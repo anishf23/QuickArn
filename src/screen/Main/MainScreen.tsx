@@ -13,6 +13,7 @@ import MyEearningScreen from './Profile/MyEearningScreen';
 import MyWalletScreen from './Profile/MyWalletScreen';
 import VerificationScreen from './Profile/VerificationScreen';
 import EditProfileScreen from './Profile/EditProfileScreen';
+import PersonalProfileScreen from './Profile/PersonalProfileScreen';
 import NotificationScreen from './NotificationScreen';
 import ChatScreen from './Chat/ChatScreen';
 import ChatListScreen from './Chat/ChatListScreen';
@@ -50,10 +51,13 @@ function MainScreen({ route }: Props) {
   const [isViewingWallet, setIsViewingWallet] = useState(false);
   const [isVerifyingProfile, setIsVerifyingProfile] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isViewingPersonalProfile, setIsViewingPersonalProfile] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
 
   const content =
-    isEditingProfile ? (
+    isViewingPersonalProfile ? (
+      <PersonalProfileScreen onBack={() => setIsViewingPersonalProfile(false)} />
+    ) : isEditingProfile ? (
       <EditProfileScreen onBack={() => setIsEditingProfile(false)} />
     ) : isVerifyingProfile ? (
       <VerificationScreen
@@ -112,6 +116,7 @@ function MainScreen({ route }: Props) {
         onJobPress={() => setIsViewingJobDetails(true)}
         onLocationPress={() => setIsSelectingLocation(true)}
         onNotificationPress={() => setIsViewingNotifications(true)}
+        onProfilePress={() => setIsViewingPersonalProfile(true)}
         onViewAll={() => setIsBrowsingJobs(true)}
         onWalletPress={() => setIsViewingWallet(true)}
       />
@@ -125,8 +130,8 @@ function MainScreen({ route }: Props) {
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
-      <View style={[styles.content, (activeTab === 'Post' || isViewingSingleChat || isBrowsingJobs || isViewingJobDetails || isPlacingBid || isViewingMyBids || isViewingMyPortfolio || isSelectingLocation || isViewingNotifications || isViewingWallet || isVerifyingProfile || isEditingProfile) && styles.postContent]}>{content}</View>
-      {activeTab !== 'Post' && !isViewingSingleChat && !isBrowsingJobs && !isViewingJobDetails && !isPlacingBid && !isViewingMyBids && !isViewingMyPortfolio && !isSelectingLocation && !isViewingNotifications && !isViewingWallet && !isVerifyingProfile && !isEditingProfile && <View
+      <View style={[styles.content, (activeTab === 'Post' || isViewingSingleChat || isBrowsingJobs || isViewingJobDetails || isPlacingBid || isViewingMyBids || isViewingMyPortfolio || isSelectingLocation || isViewingNotifications || isViewingWallet || isVerifyingProfile || isEditingProfile || isViewingPersonalProfile) && styles.postContent]}>{content}</View>
+      {activeTab !== 'Post' && !isViewingSingleChat && !isBrowsingJobs && !isViewingJobDetails && !isPlacingBid && !isViewingMyBids && !isViewingMyPortfolio && !isSelectingLocation && !isViewingNotifications && !isViewingWallet && !isVerifyingProfile && !isEditingProfile && !isViewingPersonalProfile && <View
         style={[
           styles.tabBar,
           {
@@ -154,6 +159,7 @@ function MainScreen({ route }: Props) {
                 setIsViewingWallet(false);
                 setIsVerifyingProfile(false);
                 setIsEditingProfile(false);
+                setIsViewingPersonalProfile(false);
               }}
               style={styles.tabButton}
             >
