@@ -3,14 +3,17 @@ import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import AppNavigator from './src/navigation/AppNavigator';
+import { LocalizationProvider } from './src/localization/AppLocalization';
 import { ThemeProvider, useAppTheme } from './src/theme/AppTheme';
 
 function App() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
+      <LocalizationProvider>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </LocalizationProvider>
     </SafeAreaProvider>
   );
 }

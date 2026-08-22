@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator, Modal, PermissionsAndroid, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, PermissionsAndroid, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Geolocation, { PositionError } from 'react-native-geolocation-service';
 
 import { useAppTheme } from '../../theme/AppTheme';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
 import PostJobHeader from './components/PostJobHeader';
 import { rf } from '../../utils/responsive';
 

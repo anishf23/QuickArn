@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { useAppTheme } from '../../../theme/AppTheme';
+import { LocalizedText as Text } from '../../../localization/AppLocalization';
+import { updateCurrentUser } from '../../../services/firebaseUser';
 import PostJobHeader from '../components/PostJobHeader';
 
 
@@ -19,6 +21,28 @@ function EditProfileScreen({ onBack }: EditProfileScreenProps) {
   const [about, setAbout] = useState('Reliable service professional, ready to help with local jobs.');
   const [gender, setGender] = useState<(typeof genders)[number]>('Male');
   const [skills, setSkills] = useState(['Delivery', 'Driving', 'Cooking', 'Plumbing']);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const saveProfile = async () => {
+    if (isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateCurrentUser({
+        fullName: name.trim(),
+        mobileNumber: phone.trim(),
+        email: email.trim(),
+        gender,
+        skills,
+        about: about.trim(),
+      });
+      onBack();
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.card }]}>
@@ -70,8 +94,8 @@ function EditProfileScreen({ onBack }: EditProfileScreenProps) {
         <TextInput multiline value={about} onChangeText={setAbout} placeholder="Tell us about yourself" placeholderTextColor={colors.textMuted} style={[styles.input, styles.aboutInput, { borderColor: '#E1D8E9', color: colors.text }]} textAlignVertical="top" />
       </ScrollView>
       <View style={[styles.footer, { backgroundColor: colors.card }]}>
-        <Pressable accessibilityRole="button" onPress={onBack} style={[styles.saveButton, { backgroundColor: colors.primary }]}>
-          <Text style={styles.saveText}>Save Changes</Text>
+        <Pressable accessibilityRole="button" disabled={isSaving} onPress={saveProfile} style={[styles.saveButton, { backgroundColor: colors.primary }]}>
+          <Text style={styles.saveText}>{isSaving ? 'Saving...' : 'Save Changes'}</Text>
         </Pressable>
       </View>
     </View>

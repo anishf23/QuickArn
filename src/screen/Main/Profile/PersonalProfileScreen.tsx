@@ -1,7 +1,8 @@
 import { useRef, useState, type ComponentRef } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { useAppTheme } from '../../../theme/AppTheme';
+import { LocalizedText as Text } from '../../../localization/AppLocalization';
 import PostJobHeader from '../components/PostJobHeader';
 
 type PersonalProfileScreenProps = {

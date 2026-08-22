@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { useAppTheme } from '../../theme/AppTheme';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { rf } from '../../utils/responsive';
 import LocationPickerScreen, { type SavedAddress } from './LocationPickerScreen';
 import PostJobHeader from './components/PostJobHeader';

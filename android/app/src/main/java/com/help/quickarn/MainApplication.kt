@@ -1,4 +1,4 @@
-package com.quickarn
+package com.help.quickarn
 
 import android.app.Application
 import com.facebook.react.PackageList

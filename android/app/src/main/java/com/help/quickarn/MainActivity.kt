@@ -1,4 +1,4 @@
-package com.quickarn
+package com.help.quickarn
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

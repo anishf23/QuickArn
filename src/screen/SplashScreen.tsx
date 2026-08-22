@@ -1,8 +1,9 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { LocalizedText as Text } from '../localization/AppLocalization';
 import { brandColors, useAppTheme } from '../theme/AppTheme';
 import { rf } from '../utils/responsive';
 

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { hp, rf } from '../../utils/responsive';
 import PostJobHeader from './components/PostJobHeader';
 import PostLocationDetailsScreen, { type PostLocationMode } from './PostLocationDetailsScreen';

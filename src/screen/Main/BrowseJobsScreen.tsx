@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { hp, rf } from '../../utils/responsive';
 import PostJobHeader from './components/PostJobHeader';
 

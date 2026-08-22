@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "491606986722",
+    "project_id": "quickarn",
+    "storage_bucket": "quickarn.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:491606986722:android:faf25cf78a07c77d9533bb",
+        "android_client_info": {
+          "package_name": "com.help.quickarn"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4z9N0rKCwnucCtEwpNMR-65bGATVjkug"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

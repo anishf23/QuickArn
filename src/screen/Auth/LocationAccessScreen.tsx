@@ -6,13 +6,14 @@ import {
   PermissionsAndroid,
   Platform,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import Geolocation, { PositionError } from 'react-native-geolocation-service';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
+import { updateCurrentUser } from '../../services/firebaseUser';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 
 type LocationPhase = 'intro' | 'fetching' | 'success' | 'error';
@@ -23,6 +24,7 @@ type ReverseGeocodeResponse = {
     town?: string;
     village?: string;
     suburb?: string;
+    state?: string;
   };
   display_name?: string;
 };
@@ -88,12 +90,28 @@ function LocationAccessScreen({ navigation }: Props) {
 
         setLocationName(locality);
         setLocationLabel(address);
+        await updateCurrentUser({
+          address,
+          city: locality,
+          state: result.address?.state || '',
+          latitude,
+          longitude,
+          isProfileCompleted: true,
+        }).catch(() => {});
         navigation.replace('Main', { address });
       } catch {
         const address = 'Your current address could not be identified.';
 
         setLocationName('Current location');
         setLocationLabel(address);
+        await updateCurrentUser({
+          address,
+          city: 'Current location',
+          state: '',
+          latitude,
+          longitude,
+          isProfileCompleted: true,
+        }).catch(() => {});
         navigation.replace('Main', { address });
       }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
@@ -22,6 +22,8 @@ import type { SavedAddress } from './LocationPickerScreen';
 import PostJobScreen from './PostJobScreen';
 import ProfileScreen from './ProfileScreen';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
+import { updateCurrentUser } from '../../services/firebaseUser';
 import { hp, rf } from '../../utils/responsive';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
@@ -34,7 +36,7 @@ const tabs: Array<{ icon: number; name: TabName }> = [
   { icon: require('../../../images/user.png'), name: 'Profile' },
 ];
 
-function MainScreen({ route }: Props) {
+function MainScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
   const [activeTab, setActiveTab] = useState<TabName>('Home');
   const [isBrowsingJobs, setIsBrowsingJobs] = useState(false);
@@ -64,6 +66,7 @@ function MainScreen({ route }: Props) {
         onBack={() => setIsVerifyingProfile(false)}
         onComplete={() => {
           setIsOnline(true);
+          updateCurrentUser({ isOnline: true, isVerified: true }).catch(() => {});
           setIsVerifyingProfile(false);
           setActiveTab('Home');
         }}
@@ -124,7 +127,7 @@ function MainScreen({ route }: Props) {
       <PostJobScreen onBack={() => setActiveTab('Home')} />
     ) : activeTab === 'Chat' ? (
       isViewingSingleChat ? <ChatScreen onBack={() => setIsViewingSingleChat(false)} /> : <ChatListScreen onOpenChat={() => setIsViewingSingleChat(true)} />
-    ) : <ProfileScreen onEditProfile={() => setIsEditingProfile(true)} onMyBids={() => setIsViewingMyBids(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} />;
+    ) : <ProfileScreen onEditProfile={() => setIsEditingProfile(true)} onLanguage={() => navigation.navigate('LanguageSelection', { mode: 'profile' })} onMyBids={() => setIsViewingMyBids(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} />;
 
   return (
     <SafeAreaView

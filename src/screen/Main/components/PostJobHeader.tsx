@@ -1,6 +1,7 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '../../../theme/AppTheme';
+import { LocalizedText as Text } from '../../../localization/AppLocalization';
 import { rf } from '../../../utils/responsive';
 
 type PostJobHeaderProps = {

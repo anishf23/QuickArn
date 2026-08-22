@@ -6,7 +6,6 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   useWindowDimensions,
   View,
@@ -14,6 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
+import { requestPhoneOtp } from '../../services/firebaseUser';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
@@ -35,11 +36,28 @@ function LoginScreen({ navigation }: Props) {
   const { height } = useWindowDimensions();
   const [mobileNumber, setMobileNumber] = useState('');
   const [hasReferral, setHasReferral] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
   const canContinue = mobileNumber.replace(/\D/g, '').length === 10;
   const isCompact = height < 720;
 
   const showLegalNotice = (documentName: string) => {
     Alert.alert(documentName, `${documentName} will be available soon.`);
+  };
+
+  const sendOtp = async () => {
+    if (!canContinue || isSendingOtp) {
+      return;
+    }
+
+    setIsSendingOtp(true);
+    try {
+      await requestPhoneOtp(mobileNumber);
+      navigation.navigate('OTP', { phoneNumber: mobileNumber });
+    } catch (error) {
+      Alert.alert('Unable to send OTP', error instanceof Error ? error.message : 'Please check your number and try again.');
+    } finally {
+      setIsSendingOtp(false);
+    }
   };
 
   return (
@@ -110,14 +128,12 @@ function LoginScreen({ navigation }: Props) {
             </View>
 
             <Pressable
-              disabled={!canContinue}
-              onPress={() =>
-                navigation.navigate('OTP', { phoneNumber: mobileNumber })
-              }
+              disabled={!canContinue || isSendingOtp}
+              onPress={sendOtp}
               style={[
                 styles.continueButton,
                 {
-                  backgroundColor: canContinue
+                backgroundColor: canContinue && !isSendingOtp
                     ? brandColors.blue
                     : isDark
                     ? '#334155'
@@ -125,7 +141,7 @@ function LoginScreen({ navigation }: Props) {
                 },
               ]}
             >
-              <Text style={styles.continueText}>Continue</Text>
+              <Text style={styles.continueText}>{isSendingOtp ? 'Sending OTP...' : 'Continue'}</Text>
             </Pressable>
 
             <Pressable

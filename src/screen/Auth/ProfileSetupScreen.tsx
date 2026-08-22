@@ -2,16 +2,18 @@ import { useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   KeyboardAvoidingView,
+  Alert,
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
+import { updateCurrentUser } from '../../services/firebaseUser';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
@@ -24,8 +26,25 @@ function ProfileSetupScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState<(typeof genders)[number] | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const canContinue =
     name.trim().length > 0 && email.trim().length > 0 && gender !== null;
+
+  const saveProfile = async () => {
+    if (!canContinue || isSaving || !gender) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateCurrentUser({ fullName: name.trim(), gender, email: email.trim() });
+      navigation.navigate('LanguageSelection', { mode: 'onboarding' });
+    } catch (error) {
+      Alert.alert('Unable to save profile', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -141,12 +160,12 @@ function ProfileSetupScreen({ navigation }: Props) {
           </View>
 
           <Pressable
-            disabled={!canContinue}
-            onPress={() => navigation.navigate('LocationAccess')}
+            disabled={!canContinue || isSaving}
+            onPress={saveProfile}
             style={[
               styles.continueButton,
               {
-                backgroundColor: canContinue
+                backgroundColor: canContinue && !isSaving
                   ? brandColors.blue
                   : isDark
                   ? '#334155'
@@ -154,7 +173,7 @@ function ProfileSetupScreen({ navigation }: Props) {
               },
             ]}
           >
-            <Text style={styles.continueText}>Continue</Text>
+            <Text style={styles.continueText}>{isSaving ? 'Saving...' : 'Continue'}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>

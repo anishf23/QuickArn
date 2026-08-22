@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { useAppTheme } from '../../../theme/AppTheme';
+import { LocalizedText as Text } from '../../../localization/AppLocalization';
 import { hp, rf } from '../../../utils/responsive';
 
 type ChatScreenProps = {

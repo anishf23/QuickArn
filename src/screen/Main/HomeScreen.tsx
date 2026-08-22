@@ -1,7 +1,8 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { hp, rf } from '../../utils/responsive';
 
 type HomeScreenProps = { address: string; isOnline: boolean; onAvailabilityPress: () => void; onJobPress: () => void; onLocationPress: () => void; onNotificationPress: () => void; onProfilePress: () => void; onViewAll: () => void; onWalletPress: () => void };

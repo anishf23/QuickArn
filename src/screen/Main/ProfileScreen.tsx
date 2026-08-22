@@ -1,12 +1,14 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '../../theme/AppTheme';
+import { LocalizedText as Text } from '../../localization/AppLocalization';
 
 const profileItems = [
   { icon: '▣', label: 'My Portfolio' },
   { icon: '₹', label: 'My Earnings' },
   { icon: '◇', label: 'My Bids' },
   { icon: '▤', label: 'Wallet' },
+  { icon: '◉', label: 'Language' },
   { icon: '⚙', label: 'Settings' },
   { icon: '?', label: 'Help & Support' },
   { icon: '?', label: 'Privacy Policy' },
@@ -35,12 +37,13 @@ const mySkills = ['Delivery', 'Driving', 'Cooking', 'Cleaning', 'Plumbing', 'Ele
 
 type ProfileScreenProps = {
   onEditProfile: () => void;
+  onLanguage: () => void;
   onMyBids: () => void;
   onMyPortfolio: () => void;
   onWallet: () => void;
 };
 
-function ProfileScreen({ onEditProfile, onMyBids, onMyPortfolio, onWallet }: ProfileScreenProps) {
+function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onWallet }: ProfileScreenProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -98,7 +101,7 @@ function ProfileScreen({ onEditProfile, onMyBids, onMyPortfolio, onWallet }: Pro
           <Pressable
             key={item.label}
             accessibilityRole="button"
-            onPress={item.label === 'My Bids' ? onMyBids : item.label === 'My Earnings' ? onMyPortfolio : item.label === 'Wallet' ? onWallet : undefined}
+            onPress={item.label === 'My Bids' ? onMyBids : item.label === 'My Earnings' ? onMyPortfolio : item.label === 'Wallet' ? onWallet : item.label === 'Language' ? onLanguage : undefined}
             style={styles.menuItem}
           >
             <Text style={[styles.menuIcon, { color: colors.textMuted }]}>{item.icon}</Text>

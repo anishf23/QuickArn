@@ -7,13 +7,14 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
+import { LocalizedText as Text, useLocalization } from '../../localization/AppLocalization';
+import { confirmPhoneOtp, createOrUpdateUserDocument, requestPhoneOtp } from '../../services/firebaseUser';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
@@ -21,11 +22,48 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OTP'>;
 
 function OTPScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
+  const { language } = useLocalization();
   const [otp, setOtp] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const isComplete = otp.length === 6;
 
   const updateOtp = (value: string) => {
     setOtp(value.replace(/\D/g, '').slice(0, 6));
+  };
+
+  const verifyOtp = async () => {
+    if (!isComplete || isVerifying) {
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      const user = await confirmPhoneOtp(otp);
+      await createOrUpdateUserDocument(user, route.params.phoneNumber, language);
+      navigation.replace('ProfileSetup');
+    } catch (error) {
+      Alert.alert('Verification failed', error instanceof Error ? error.message : 'The OTP is invalid. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    if (isResending) {
+      return;
+    }
+
+    setIsResending(true);
+    try {
+      await requestPhoneOtp(route.params.phoneNumber);
+      setOtp('');
+      Alert.alert('Code resent', 'A new verification code has been sent.');
+    } catch (error) {
+      Alert.alert('Unable to resend OTP', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
@@ -93,12 +131,12 @@ function OTPScreen({ navigation, route }: Props) {
             </View>
 
             <Pressable
-              disabled={!isComplete}
-              onPress={() => navigation.replace('ProfileSetup')}
+              disabled={!isComplete || isVerifying}
+              onPress={verifyOtp}
               style={[
                 styles.verifyButton,
                 {
-                  backgroundColor: isComplete
+                  backgroundColor: isComplete && !isVerifying
                     ? brandColors.blue
                     : isDark
                     ? '#334155'
@@ -106,21 +144,17 @@ function OTPScreen({ navigation, route }: Props) {
                 },
               ]}
             >
-              <Text style={styles.verifyText}>Verify OTP</Text>
+              <Text style={styles.verifyText}>{isVerifying ? 'Verifying...' : 'Verify OTP'}</Text>
             </Pressable>
 
             <Text style={[styles.resendHint, { color: colors.textMuted }]}>
               Didn't receive the code?
             </Text>
             <Pressable
-              onPress={() =>
-                Alert.alert(
-                  'Code resent',
-                  'A new verification code has been sent.',
-                )
-              }
+              disabled={isResending}
+              onPress={resendOtp}
             >
-              <Text style={styles.resendText}>Resend OTP</Text>
+              <Text style={styles.resendText}>{isResending ? 'Sending OTP...' : 'Resend OTP'}</Text>
             </Pressable>
           </View>
         </View>
