@@ -14,7 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
 import { LocalizedText as Text, useLocalization } from '../../localization/AppLocalization';
-import { confirmPhoneOtp, createOrUpdateUserDocument, requestPhoneOtp } from '../../services/firebaseUser';
+import {
+  confirmPhoneOtp,
+  createOrUpdateUserDocument,
+  getExistingUserProfile,
+  requestPhoneOtp,
+} from '../../services/firebaseUser';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { hp, rf } from '../../utils/responsive';
 
@@ -40,6 +45,13 @@ function OTPScreen({ navigation, route }: Props) {
     setIsVerifying(true);
     try {
       const user = await confirmPhoneOtp(otp);
+      const existingProfile = await getExistingUserProfile(user.uid);
+
+      if (existingProfile) {
+        navigation.replace('LocationAccess');
+        return;
+      }
+
       await createOrUpdateUserDocument(user, route.params.phoneNumber, language);
       navigation.replace('ProfileSetup');
     } catch (error) {

@@ -12,6 +12,10 @@ let unsubscribeTokenRefresh: (() => void) | null = null;
 
 const userDocument = (uid: string) => doc(getFirestore(), 'users', uid);
 
+type StoredUserProfile = {
+  address?: string;
+};
+
 export async function requestPhoneOtp(mobileNumber: string) {
   const normalizedNumber = mobileNumber.replace(/\D/g, '');
   phoneConfirmation = await signInWithPhoneNumber(getAuth(), `+91${normalizedNumber}`);
@@ -95,6 +99,16 @@ export async function createOrUpdateUserDocument(
   }
 
   startFcmTokenSync(user.uid);
+}
+
+export async function getExistingUserProfile(uid: string) {
+  const snapshot = await getDoc(userDocument(uid));
+
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  return snapshot.data() as StoredUserProfile;
 }
 
 export async function updateCurrentUser(fields: Record<string, unknown>) {
