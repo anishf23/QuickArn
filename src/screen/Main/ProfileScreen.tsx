@@ -12,6 +12,7 @@ const profileItems = [
   // { icon: '▣', label: 'My Portfolio' },
   { icon: '₹', label: 'My Earnings' },
   { icon: '◇', label: 'My Bids' },
+  { icon: '◇', label: 'My Jobs' },
   { icon: '▤', label: 'Wallet' },
   { icon: '◉', label: 'Language' },
   { icon: '⚙', label: 'Settings' },
@@ -43,12 +44,13 @@ type ProfileScreenProps = {
   onEditProfile: () => void;
   onLanguage: () => void;
   onMyBids: () => void;
+  onMyJobs: () => void;
   onMyPortfolio: () => void;
   onWallet: () => void;
   onLogout: () => void;
 };
 
-function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onWallet, onLogout }: ProfileScreenProps) {
+function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPortfolio, onWallet, onLogout }: ProfileScreenProps) {
   const { colors } = useAppTheme();
   const { showAlert } = useCustomAlert();
   const [profile, setProfile] = useState<StoredUserProfile | null>(null);
@@ -124,13 +126,15 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onW
       )}
 
       <View style={styles.menu}>
-        {profileItems.filter(item => !isCustomer || item.label !== 'My Earnings').map(item => (
+        {profileItems.filter(item => !isCustomer || (item.label !== 'My Earnings' && item.label !== 'My Bids')).map(item => (
           <Pressable
             key={item.label}
             accessibilityRole="button"
             onPress={
               item.label === 'My Bids'
                 ? onMyBids
+                : item.label === 'My Jobs'
+                ? onMyJobs
                 : item.label === 'My Earnings'
                 ? onMyPortfolio
                 : item.label === 'Wallet'

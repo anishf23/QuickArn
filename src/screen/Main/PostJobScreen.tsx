@@ -1,35 +1,53 @@
 import { useCallback, useEffect, useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { BackHandler, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { collection, getDocs, getFirestore } from '@react-native-firebase/firestore';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
+import { useCustomAlert } from '../../components/CustomAlert';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
+import { createJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
 import PostJobHeader from './components/PostJobHeader';
-import PostLocationDetailsScreen, { type PostLocationMode } from './PostLocationDetailsScreen';
+import PostLocationDetailsScreen, { type LocationDetails, type PostLocationMode } from './PostLocationDetailsScreen';
 
 type PostJobScreenProps = {
   onBack: () => void;
 };
 
 type DatePickerTarget = 'job' | 'close' | null;
+type FormField = 'category' | 'jobTitle' | 'description' | 'jobDateTime' | 'closeDateTime' | 'pickupLocation' | 'dropLocation' | 'budget';
+type FormErrors = Partial<Record<FormField, string>>;
 
-const categories = [
-  { icon: '▰', name: 'Delivery' },
-  { icon: '⌁', name: 'Plumber' },
-  { icon: 'ϟ', name: 'Electrical' },
-  { icon: '♧', name: 'Cleaning' },
-  { icon: '⌂', name: 'Home\nServices' },
-  { icon: '⚒', name: 'Repairs' },
-  { icon: '▱', name: 'Moving' },
-  { icon: '+', name: 'More' },
-];
+type JobCategory = {
+  icon: string;
+  id: string;
+  name: string;
+};
 
 const priorities = [
   { label: 'High', activeBackground: '#FEE2E2', activeBorder: '#EF4444', activeText: '#DC2626' },
   { label: 'Medium', activeBackground: '#FEF3C7', activeBorder: '#F59E0B', activeText: '#B45309' },
   { label: 'Low', activeBackground: '#DCFCE7', activeBorder: '#22C55E', activeText: '#15803D' },
 ] as const;
+
+const emptyLocationDetails: LocationDetails = {
+  address: '',
+  floorDetails: '',
+  name: '',
+  nearbyLocation: '',
+  phoneNumber: '',
+};
+
+const displayLocation = (details: LocationDetails) => [details.address, details.nearbyLocation]
+  .filter(Boolean)
+  .join(', ');
+
+const displayLocationDetails = (details: LocationDetails) => [
+  details.name && details.phoneNumber ? `${details.name} • +91 ${details.phoneNumber}` : details.name || details.phoneNumber,
+  displayLocation(details),
+  details.floorDetails,
+].filter(Boolean).join('\n');
 
 const formatDateTime = (value: Date) => {
   const day = String(value.getDate()).padStart(2, '0');
@@ -43,22 +61,78 @@ const formatDateTime = (value: Date) => {
 
 function PostJobScreen({ onBack }: PostJobScreenProps) {
   const { colors } = useAppTheme();
+  const { showAlert } = useCustomAlert();
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedCategory, setSelectedCategory] = useState('Delivery');
-  const [jobTitle, setJobTitle] = useState('Need Delivery Boy');
+  const [categories, setCategories] = useState<JobCategory[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
   const [description, setDescription] = useState(
-    'Need a person to pickup documents from Paldi and deliver to Satellite area.',
+    '',
   );
-  const [budget, setBudget] = useState('200');
+  const [budget, setBudget] = useState('');
   const [priority, setPriority] = useState<(typeof priorities)[number]['label']>('Medium');
-  const [jobDateTime, setJobDateTime] = useState(new Date(2024, 4, 24, 16, 0));
-  const [closeDateTime, setCloseDateTime] = useState(new Date(2024, 4, 24, 16, 0));
+  const [jobDateTime, setJobDateTime] = useState<Date | null>(null);
+  const [closeDateTime, setCloseDateTime] = useState<Date | null>(null);
   const [datePickerTarget, setDatePickerTarget] = useState<DatePickerTarget>(null);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
   const [isPublished, setIsPublished] = useState(false);
-  const [pickupLocation, setPickupLocation] = useState('Paldi, Ahmedabad');
-  const [dropLocation, setDropLocation] = useState('Satellite, Ahmedabad');
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishedJobId, setPublishedJobId] = useState('');
+  const [pickupDetails, setPickupDetails] = useState<LocationDetails>(emptyLocationDetails);
+  const [dropDetails, setDropDetails] = useState<LocationDetails>(emptyLocationDetails);
   const [editingLocation, setEditingLocation] = useState<PostLocationMode | null>(null);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const pickupLocation = displayLocation(pickupDetails);
+  const dropLocation = displayLocation(dropDetails);
+  const isDeliveryCategory = selectedCategory.trim().toLowerCase() === 'delivery';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCategories = async () => {
+      try {
+        const snapshot = await getDocs(collection(getFirestore(), 'categories'));
+        const nextCategories = snapshot.docs.map(document => {
+          const data = document.data() as { icon?: unknown; name?: unknown; title?: unknown };
+          const name = typeof data.name === 'string'
+            ? data.name
+            : typeof data.title === 'string'
+            ? data.title
+            : document.id;
+
+          return {
+            icon: typeof data.icon === 'string' && data.icon.trim() ? data.icon : '▰',
+            id: document.id,
+            name,
+          };
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCategories(nextCategories);
+        setSelectedCategory(current => nextCategories.some(category => category.name === current)
+          ? current
+          : nextCategories[0]?.name ?? '');
+      } catch {
+        if (isMounted) {
+          setCategories([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingCategories(false);
+        }
+      }
+    };
+
+    loadCategories().catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const goBack = useCallback(() => {
     if (currentStep > 1) {
@@ -87,9 +161,80 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
     return () => subscription.remove();
   }, [datePickerTarget, editingLocation, goBack, isPublished]);
 
-  const goToNextStep = () => {
+  const goToNextStep = async () => {
+    const nextErrors: FormErrors = {};
+
+    if (currentStep === 1 && !selectedCategory) {
+      nextErrors.category = 'Please select a category.';
+    }
+
+    if (currentStep === 2) {
+      if (jobTitle.trim().length < 3) {
+        nextErrors.jobTitle = 'Enter a job title with at least 3 characters.';
+      }
+      if (description.trim().length < 10) {
+        nextErrors.description = 'Enter at least 10 characters for the job description.';
+      }
+      if (!jobDateTime || Number.isNaN(jobDateTime.getTime())) {
+        nextErrors.jobDateTime = 'Please select a valid job date and time.';
+      }
+      if (!closeDateTime || Number.isNaN(closeDateTime.getTime())) {
+        nextErrors.closeDateTime = 'Please select a valid closing date and time.';
+      } else if (jobDateTime && closeDateTime.getTime() < jobDateTime.getTime()) {
+        nextErrors.closeDateTime = 'Closing date and time must be after the job date and time.';
+      }
+    }
+
+    if (currentStep === 3) {
+      if (!pickupLocation.trim()) {
+        nextErrors.pickupLocation = 'Please add the pickup location.';
+      }
+      if (!dropLocation.trim()) {
+        nextErrors.dropLocation = 'Please add the drop location.';
+      }
+      if (!budget.trim()) {
+        nextErrors.budget = isDeliveryCategory ? 'Please enter a fixed budget.' : 'Please enter an hourly budget.';
+      } else if (!/^\d+$/.test(budget.trim()) || Number(budget) < 100 || Number(budget) > 10000) {
+        nextErrors.budget = isDeliveryCategory
+          ? 'Fixed budget must be between ₹100 and ₹10,000.'
+          : 'Hourly budget must be between ₹100 and ₹10,000.';
+      }
+    }
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
     if (currentStep === 4) {
-      setIsPublished(true);
+      if (isPublishing || !jobDateTime || !closeDateTime) {
+        return;
+      }
+
+      setIsPublishing(true);
+      try {
+        const jobId = await createJob({
+          budget: Number(budget),
+          budgetType: isDeliveryCategory ? 'fixed' : 'hourly',
+          category: selectedCategory,
+          closeDateTime,
+          description,
+          dropDetails,
+          jobDateTime,
+          pickupDetails,
+          priority,
+          title: jobTitle,
+        });
+        setPublishedJobId(jobId);
+        setIsPublished(true);
+      } catch (error) {
+        showAlert(
+          'Unable to publish job',
+          error instanceof Error ? error.message : 'Please try again.',
+        );
+      } finally {
+        setIsPublishing(false);
+      }
       return;
     }
 
@@ -99,6 +244,10 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
   const openDateTimePicker = (target: Exclude<DatePickerTarget, null>) => {
     setDatePickerTarget(target);
     setPickerMode('date');
+  };
+
+  const clearError = (field: FormField) => {
+    setErrors(current => current[field] ? { ...current, [field]: undefined } : current);
   };
 
   const handleDateTimeChange = (_event: unknown, selectedValue?: Date) => {
@@ -111,12 +260,13 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
     const nextValue = new Date(selectedValue);
 
     if (pickerMode === 'date') {
-      nextValue.setHours(currentValue.getHours(), currentValue.getMinutes());
+      nextValue.setHours(currentValue?.getHours() ?? new Date().getHours(), currentValue?.getMinutes() ?? new Date().getMinutes());
       if (datePickerTarget === 'job') {
         setJobDateTime(nextValue);
       } else {
         setCloseDateTime(nextValue);
       }
+      clearError(datePickerTarget === 'job' ? 'jobDateTime' : 'closeDateTime');
       setPickerMode('time');
       return;
     }
@@ -126,6 +276,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
     } else {
       setCloseDateTime(nextValue);
     }
+    clearError(datePickerTarget === 'job' ? 'jobDateTime' : 'closeDateTime');
     setDatePickerTarget(null);
   };
 
@@ -133,14 +284,16 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
     const isPickup = editingLocation === 'pickup';
     return (
       <PostLocationDetailsScreen
-        initialAddress={isPickup ? pickupLocation : dropLocation}
+        initialDetails={isPickup ? pickupDetails : dropDetails}
         mode={editingLocation}
         onBack={() => setEditingLocation(null)}
-        onConfirm={address => {
+        onConfirm={details => {
           if (isPickup) {
-            setPickupLocation(address);
+            setPickupDetails(details);
+            clearError('pickupLocation');
           } else {
-            setDropLocation(address);
+            setDropDetails(details);
+            clearError('dropLocation');
           }
           setEditingLocation(null);
         }}
@@ -162,15 +315,22 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
           <>
             <Text style={[styles.title, { color: colors.text }]}>Select Category</Text>
             <View style={styles.categoryGrid}>
-              {categories.map(category => {
+              {isLoadingCategories ? (
+                <Text style={[styles.categoryMessage, { color: colors.textMuted }]}>Loading categories...</Text>
+              ) : categories.length === 0 ? (
+                <Text style={[styles.categoryMessage, { color: colors.textMuted }]}>No categories available.</Text>
+              ) : categories.map(category => {
                 const selected = category.name === selectedCategory;
                 return (
                   <Pressable
-                    key={category.name}
+                    key={category.id}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
-                    onPress={() => setSelectedCategory(category.name)}
-                    style={[styles.categoryCard, selected && styles.categoryCardSelected]}
+                    onPress={() => {
+                      setSelectedCategory(category.name);
+                      clearError('category');
+                    }}
+                    style={[styles.categoryCard, selected && styles.categoryCardSelected, errors.category && styles.fieldErrorBorder]}
                   >
                     <Text style={[styles.categoryIcon, { color: selected ? colors.primary : colors.textMuted }]}>{category.icon}</Text>
                     <Text style={[styles.categoryName, { color: selected ? colors.primary : colors.textMuted }]}>{category.name}</Text>
@@ -178,6 +338,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
                 );
               })}
             </View>
+            {errors.category ? <Text style={styles.errorText}>{errors.category}</Text> : null}
           </>
         ) : currentStep === 2 ? (
           <View style={styles.detailsForm}>
@@ -186,36 +347,46 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Title</Text>
             <TextInput
               value={jobTitle}
-              onChangeText={setJobTitle}
+              onChangeText={value => {
+                setJobTitle(value);
+                clearError('jobTitle');
+              }}
               placeholder="Enter job title"
               placeholderTextColor={colors.textMuted}
-              style={[styles.input, { color: colors.text }]}
+              style={[styles.input, errors.jobTitle && styles.fieldErrorBorder, { color: colors.text }]}
             />
+            {errors.jobTitle ? <Text style={styles.errorText}>{errors.jobTitle}</Text> : null}
 
             <Text style={[styles.fieldLabel, styles.descriptionLabel, { color: colors.textMuted }]}>Description</Text>
             <TextInput
               multiline
               textAlignVertical="top"
               value={description}
-              onChangeText={setDescription}
+              onChangeText={value => {
+                setDescription(value);
+                clearError('description');
+              }}
               placeholder="Describe the work needed"
               placeholderTextColor={colors.textMuted}
-              style={[styles.input, styles.descriptionInput, { color: colors.text }]}
+              style={[styles.input, styles.descriptionInput, errors.description && styles.fieldErrorBorder, { color: colors.text }]}
             />
+            {errors.description ? <Text style={styles.errorText}>{errors.description}</Text> : null}
 
             <Text style={[styles.fieldLabel, styles.dateLabel, { color: colors.textMuted }]}>Date &amp; Time</Text>
-            <Pressable accessibilityRole="button" onPress={() => openDateTimePicker('job')} style={styles.dateInput}>
-              <Text style={[styles.dateValue, { color: colors.text }]}>{formatDateTime(jobDateTime)}</Text>
+            <Pressable accessibilityRole="button" onPress={() => openDateTimePicker('job')} style={[styles.dateInput, errors.jobDateTime && styles.fieldErrorBorder]}>
+              <Text style={[styles.dateValue, { color: jobDateTime ? colors.text : colors.textMuted }]}>{jobDateTime ? formatDateTime(jobDateTime) : 'Select job date & time'}</Text>
               <Text style={[styles.dateIcon, { color: colors.text }]}>□</Text>
               <Text style={[styles.chevron, { color: colors.textMuted }]}>⌄</Text>
             </Pressable>
+            {errors.jobDateTime ? <Text style={styles.errorText}>{errors.jobDateTime}</Text> : null}
 
             <Text style={[styles.fieldLabel, styles.dateLabel, { color: colors.textMuted }]}>Job close Date &amp; Time</Text>
-            <Pressable accessibilityRole="button" onPress={() => openDateTimePicker('close')} style={styles.dateInput}>
-              <Text style={[styles.dateValue, { color: colors.text }]}>{formatDateTime(closeDateTime)}</Text>
+            <Pressable accessibilityRole="button" onPress={() => openDateTimePicker('close')} style={[styles.dateInput, errors.closeDateTime && styles.fieldErrorBorder]}>
+              <Text style={[styles.dateValue, { color: closeDateTime ? colors.text : colors.textMuted }]}>{closeDateTime ? formatDateTime(closeDateTime) : 'Select closing date & time'}</Text>
               <Text style={[styles.dateIcon, { color: colors.text }]}>□</Text>
               <Text style={[styles.chevron, { color: colors.textMuted }]}>⌄</Text>
             </Pressable>
+            {errors.closeDateTime ? <Text style={styles.errorText}>{errors.closeDateTime}</Text> : null}
 
             <Text style={[styles.fieldLabel, styles.priorityLabel, { color: colors.textMuted }]}>Job Priority</Text>
             <View style={styles.priorityRow}>
@@ -251,16 +422,18 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
             <Text style={[styles.title, { color: colors.text }]}>Location &amp; Budget</Text>
 
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Pickup Location</Text>
-            <Pressable accessibilityRole="button" onPress={() => setEditingLocation('pickup')} style={styles.locationInput}>
-              <Text numberOfLines={1} style={[styles.locationValue, { color: colors.text }]}>{pickupLocation}</Text>
+            <Pressable accessibilityRole="button" onPress={() => setEditingLocation('pickup')} style={[styles.locationInput, errors.pickupLocation && styles.fieldErrorBorder]}>
+              <Text numberOfLines={1} style={[styles.locationValue, { color: pickupLocation ? colors.text : colors.textMuted }]}>{pickupLocation || 'Select pickup location'}</Text>
               <Text style={[styles.locationChevron, { color: colors.textMuted }]}>⌄</Text>
             </Pressable>
+            {errors.pickupLocation ? <Text style={styles.errorText}>{errors.pickupLocation}</Text> : null}
 
             <Text style={[styles.fieldLabel, styles.dropLabel, { color: colors.textMuted }]}>Drop Location</Text>
-            <Pressable accessibilityRole="button" onPress={() => setEditingLocation('drop')} style={styles.locationInput}>
-              <Text numberOfLines={1} style={[styles.locationValue, { color: colors.text }]}>{dropLocation}</Text>
+            <Pressable accessibilityRole="button" onPress={() => setEditingLocation('drop')} style={[styles.locationInput, errors.dropLocation && styles.fieldErrorBorder]}>
+              <Text numberOfLines={1} style={[styles.locationValue, { color: dropLocation ? colors.text : colors.textMuted }]}>{dropLocation || 'Select drop location'}</Text>
               <Text style={[styles.locationChevron, { color: colors.textMuted }]}>⌄</Text>
             </Pressable>
+            {errors.dropLocation ? <Text style={styles.errorText}>{errors.dropLocation}</Text> : null}
 
             <View style={styles.mapPreview}>
               <View style={styles.routeLine} />
@@ -269,16 +442,22 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
               <Text style={styles.packageIcon}>▯</Text>
             </View>
 
-            <Text style={[styles.fieldLabel, styles.budgetLabel, { color: colors.textMuted }]}>Budget (₹)</Text>
+            <Text style={[styles.fieldLabel, styles.budgetLabel, { color: colors.textMuted }]}>
+              {isDeliveryCategory ? 'Fixed Budget (₹)' : 'Hourly Budget (₹/hour)'}
+            </Text>
             <TextInput
               keyboardType="numeric"
               value={budget}
-              onChangeText={setBudget}
-              placeholder="Enter budget"
+              onChangeText={value => {
+                setBudget(value.replace(/[^0-9]/g, ''));
+                clearError('budget');
+              }}
+              placeholder={isDeliveryCategory ? 'Enter total budget' : 'Enter hourly budget'}
               placeholderTextColor={colors.textMuted}
-              style={[styles.input, styles.budgetInput, { color: colors.text }]}
+              style={[styles.input, styles.budgetInput, errors.budget && styles.fieldErrorBorder, { color: colors.text }]}
             />
-            <Text style={[styles.budgetHint, { color: colors.textMuted }]}>Min ₹100 - Max ₹10000</Text>
+            {errors.budget ? <Text style={styles.errorText}>{errors.budget}</Text> : null}
+            <Text style={[styles.budgetHint, { color: colors.textMuted }]}>Min ₹100 - Max ₹10000 {isDeliveryCategory ? 'total' : 'per hour'}</Text>
           </View>
         ) : (
           <View style={styles.reviewForm}>
@@ -302,14 +481,14 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
             <View style={styles.reviewRow}>
               <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Date &amp; Time</Text>
               <View style={styles.reviewValueRow}>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>{formatDateTime(jobDateTime)}</Text>
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{jobDateTime ? formatDateTime(jobDateTime) : '-'}</Text>
               </View>
             </View>
 
             <View style={styles.reviewRow}>
               <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Job Close Date &amp; Time</Text>
               <View style={styles.reviewValueRow}>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>{formatDateTime(closeDateTime)}</Text>
+                <Text style={[styles.reviewValue, { color: colors.text }]}>{closeDateTime ? formatDateTime(closeDateTime) : '-'}</Text>
                 
               </View>
             </View>
@@ -329,25 +508,37 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
             </View>
 
             <View style={styles.reviewRow}>
-              <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Budget</Text>
+              <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>{isDeliveryCategory ? 'Fixed Budget' : 'Hourly Budget'}</Text>
               <View style={styles.reviewValueRow}>
-                <Text style={[styles.reviewValue, { color: colors.text }]}>₹{budget}</Text>
+                <Text style={[styles.reviewValue, { color: colors.text }]}>₹{budget}{isDeliveryCategory ? '' : ' / hour'}</Text>
               </View>
             </View>
 
 
             <View style={styles.reviewRow}>
-              <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Location</Text>
+              <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Pickup Details</Text>
               <View style={styles.reviewValueRow}>
-                <Text style={[styles.reviewValue, styles.locationReviewValue, { color: colors.text }]}>{pickupLocation} to {dropLocation}</Text>
+                <Text style={[styles.reviewValue, styles.locationReviewValue, { color: colors.text }]}>{displayLocationDetails(pickupDetails)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.reviewRow}>
+              <Text style={[styles.reviewLabel, { color: colors.textMuted }]}>Drop Details</Text>
+              <View style={styles.reviewValueRow}>
+                <Text style={[styles.reviewValue, styles.locationReviewValue, { color: colors.text }]}>{displayLocationDetails(dropDetails)}</Text>
               </View>
             </View>
           </View>
         )}
       </View>
 
-      <Pressable accessibilityRole="button" onPress={goToNextStep} style={[styles.nextButton, { backgroundColor: colors.primary }]}> 
-        <Text style={styles.nextLabel}>{currentStep === 4 ? 'Publish Job' : 'Next'}</Text>
+      <Pressable
+        accessibilityRole="button"
+        disabled={(currentStep === 1 && !selectedCategory) || isPublishing}
+        onPress={goToNextStep}
+        style={[styles.nextButton, { backgroundColor: currentStep === 1 && !selectedCategory ? '#CBD5E1' : colors.primary }]}
+      >
+        <Text style={styles.nextLabel}>{isPublishing ? 'Publishing...' : currentStep === 4 ? 'Publish Job' : 'Next'}</Text>
       </Pressable>
 
       {datePickerTarget && (
@@ -355,7 +546,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           mode={pickerMode}
           onChange={handleDateTimeChange}
-          value={datePickerTarget === 'job' ? jobDateTime : closeDateTime}
+          value={datePickerTarget === 'job' ? jobDateTime ?? new Date() : closeDateTime ?? new Date()}
         />
       )}
 
@@ -369,7 +560,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
             </View>
             <Text style={[styles.successTitle, { color: colors.text }]}>Job Posted</Text>
             <Text style={[styles.successMessage, { color: colors.textMuted }]}>Your job has been posted successfully!</Text>
-            <View style={styles.jobIdBadge}><Text style={[styles.jobIdText, { color: colors.primary }]}>Job ID: #J12345</Text></View>
+            <View style={styles.jobIdBadge}><Text style={[styles.jobIdText, { color: colors.primary }]}>Job ID: #{publishedJobId.slice(0, 8).toUpperCase()}</Text></View>
 
             <View style={styles.successActions}>
               <Pressable accessibilityRole="button" onPress={() => setIsPublished(false)} style={styles.viewJobButton}>
@@ -390,6 +581,7 @@ const styles = StyleSheet.create({
   categoryCard: { alignItems: 'center', backgroundColor: '#F8F8FA', borderRadius: 9, borderWidth: 1, height: 76, justifyContent: 'center', marginBottom: 8, width: '31.8%' },
   categoryCardSelected: { borderColor: brandColors.blue },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: '2.3%', marginTop: 17 },
+  categoryMessage: { fontSize: rf(13), paddingVertical: 18, textAlign: 'center', width: '100%' },
   categoryIcon: { fontSize: rf(22), fontWeight: '800', height: 26, textAlign: 'center' },
   categoryName: { fontSize: rf(10), fontWeight: '700', lineHeight: rf(11), marginTop: 4, textAlign: 'center' },
   content: { flex: 1, paddingHorizontal: 8, paddingTop: 24 },
@@ -405,7 +597,9 @@ const styles = StyleSheet.create({
   descriptionLabel: { marginTop: 17 },
   dropLabel: { marginTop: 13 },
   editIcon: { fontSize: rf(15), marginLeft: 10 },
+  errorText: { color: '#DC2626', fontSize: rf(10), lineHeight: rf(13), marginTop: 4 },
   fieldLabel: { fontSize: rf(11), fontWeight: '500', marginBottom: 6 },
+  fieldErrorBorder: { borderColor: '#DC2626' },
   input: { borderColor: '#9CA3AF', borderRadius: 6, borderWidth: 1, fontSize: rf(12), height: 36, paddingHorizontal: 10 },
   locationChevron: { fontSize: rf(16), marginRight: 11 },
   locationForm: { flex: 1 },

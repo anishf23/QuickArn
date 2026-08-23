@@ -9,6 +9,7 @@ import BrowseJobsScreen from './BrowseJobsScreen';
 import JobDetailsScreen from './JobDetailsScreen';
 import PlaceBidScreen from './PlaceBidScreen';
 import MyBidsScreen from './Profile/MyBidsScreen';
+import MyJobsScreen from './Profile/MyJobsScreen';
 import MyEearningScreen from './Profile/MyEearningScreen';
 import MyWalletScreen from './Profile/MyWalletScreen';
 import VerificationScreen from './Profile/VerificationScreen';
@@ -24,6 +25,7 @@ import ProfileScreen from './ProfileScreen';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text, useLocalization } from '../../localization/AppLocalization';
 import { signOutCurrentUser, updateCurrentUser } from '../../services/firebaseUser';
+import type { PostedJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
@@ -44,6 +46,7 @@ function MainScreen({ navigation, route }: Props) {
   const [isViewingJobDetails, setIsViewingJobDetails] = useState(false);
   const [isPlacingBid, setIsPlacingBid] = useState(false);
   const [isViewingMyBids, setIsViewingMyBids] = useState(false);
+  const [isViewingMyJobs, setIsViewingMyJobs] = useState(false);
   const [isViewingMyPortfolio, setIsViewingMyPortfolio] = useState(false);
   const [isViewingSingleChat, setIsViewingSingleChat] = useState(false);
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
@@ -56,6 +59,7 @@ function MainScreen({ navigation, route }: Props) {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isViewingPersonalProfile, setIsViewingPersonalProfile] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<PostedJob | null>(null);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -75,10 +79,16 @@ function MainScreen({ navigation, route }: Props) {
         setIsViewingMyPortfolio(false);
       } else if (isViewingMyBids) {
         setIsViewingMyBids(false);
+      } else if (isViewingMyJobs) {
+        setIsViewingMyJobs(false);
       } else if (isPlacingBid) {
         setIsPlacingBid(false);
       } else if (isViewingJobDetails) {
         setIsViewingJobDetails(false);
+        if (selectedJob) {
+          setIsViewingMyJobs(true);
+          setSelectedJob(null);
+        }
       } else if (isBrowsingJobs) {
         setIsBrowsingJobs(false);
       } else if (isViewingSingleChat) {
@@ -103,11 +113,13 @@ function MainScreen({ navigation, route }: Props) {
     isVerifyingProfile,
     isViewingJobDetails,
     isViewingMyBids,
+    isViewingMyJobs,
     isViewingMyPortfolio,
     isViewingNotifications,
     isViewingPersonalProfile,
     isViewingSingleChat,
     isViewingWallet,
+    selectedJob,
   ]);
 
   const handleLogout = async () => {
@@ -158,6 +170,15 @@ function MainScreen({ navigation, route }: Props) {
       <MyEearningScreen onBack={() => setIsViewingMyPortfolio(false)} />
     ) : isViewingMyBids ? (
       <MyBidsScreen onBack={() => setIsViewingMyBids(false)} />
+    ) : isViewingMyJobs ? (
+      <MyJobsScreen
+        onBack={() => setIsViewingMyJobs(false)}
+        onOpenJob={job => {
+          setSelectedJob(job);
+          setIsViewingMyJobs(false);
+          setIsViewingJobDetails(true);
+        }}
+      />
     ) : isPlacingBid ? (
       <PlaceBidScreen
         onBack={() => setIsPlacingBid(false)}
@@ -173,7 +194,17 @@ function MainScreen({ navigation, route }: Props) {
         }}
       />
     ) : isViewingJobDetails ? (
-      <JobDetailsScreen onBack={() => setIsViewingJobDetails(false)} onPlaceBid={() => setIsPlacingBid(true)} />
+      <JobDetailsScreen
+        job={selectedJob}
+        onBack={() => {
+          setIsViewingJobDetails(false);
+          if (selectedJob) {
+            setIsViewingMyJobs(true);
+            setSelectedJob(null);
+          }
+        }}
+        onPlaceBid={() => setIsPlacingBid(true)}
+      />
     ) : isBrowsingJobs ? (
       <BrowseJobsScreen onBack={() => setIsBrowsingJobs(false)} />
     ) : activeTab === 'Home' ? (
@@ -192,7 +223,7 @@ function MainScreen({ navigation, route }: Props) {
       <PostJobScreen onBack={() => setActiveTab('Home')} />
     ) : activeTab === 'Chat' ? (
       isViewingSingleChat ? <ChatScreen onBack={() => setIsViewingSingleChat(false)} /> : <ChatListScreen onOpenChat={() => setIsViewingSingleChat(true)} />
-    ) : <ProfileScreen onEditProfile={() => setIsEditingProfile(true)} onLanguage={() => navigation.navigate('LanguageSelection', { mode: 'profile' })} onMyBids={() => setIsViewingMyBids(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} onLogout={() => {
+    ) : <ProfileScreen onEditProfile={() => setIsEditingProfile(true)} onLanguage={() => navigation.navigate('LanguageSelection', { mode: 'profile' })} onMyBids={() => setIsViewingMyBids(true)} onMyJobs={() => setIsViewingMyJobs(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} onLogout={() => {
       handleLogout().catch(() => {});
     }} />;
 
@@ -200,8 +231,8 @@ function MainScreen({ navigation, route }: Props) {
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
-      <View style={[styles.content, (activeTab === 'Post' || isViewingSingleChat || isBrowsingJobs || isViewingJobDetails || isPlacingBid || isViewingMyBids || isViewingMyPortfolio || isSelectingLocation || isViewingNotifications || isViewingWallet || isVerifyingProfile || isEditingProfile || isViewingPersonalProfile) && styles.postContent]}>{content}</View>
-      {activeTab !== 'Post' && !isViewingSingleChat && !isBrowsingJobs && !isViewingJobDetails && !isPlacingBid && !isViewingMyBids && !isViewingMyPortfolio && !isSelectingLocation && !isViewingNotifications && !isViewingWallet && !isVerifyingProfile && !isEditingProfile && !isViewingPersonalProfile && <View
+      <View style={[styles.content, (activeTab === 'Post' || isViewingSingleChat || isBrowsingJobs || isViewingJobDetails || isPlacingBid || isViewingMyBids || isViewingMyJobs || isViewingMyPortfolio || isSelectingLocation || isViewingNotifications || isViewingWallet || isVerifyingProfile || isEditingProfile || isViewingPersonalProfile) && styles.postContent]}>{content}</View>
+      {activeTab !== 'Post' && !isViewingSingleChat && !isBrowsingJobs && !isViewingJobDetails && !isPlacingBid && !isViewingMyBids && !isViewingMyJobs && !isViewingMyPortfolio && !isSelectingLocation && !isViewingNotifications && !isViewingWallet && !isVerifyingProfile && !isEditingProfile && !isViewingPersonalProfile && <View
         style={[
           styles.tabBar,
           {
@@ -222,6 +253,7 @@ function MainScreen({ navigation, route }: Props) {
                 setIsViewingJobDetails(false);
                 setIsPlacingBid(false);
                 setIsViewingMyBids(false);
+                setIsViewingMyJobs(false);
                 setIsViewingMyPortfolio(false);
                 setIsViewingSingleChat(false);
                 setIsSelectingLocation(false);

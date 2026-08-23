@@ -1,0 +1,85 @@
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+
+import { useAppTheme } from '../../../theme/AppTheme';
+import { LocalizedText as Text } from '../../../localization/AppLocalization';
+import { getMyJobs, type PostedJob } from '../../../services/jobs';
+import { rf } from '../../../utils/responsive';
+import PostJobHeader from '../components/PostJobHeader';
+
+type MyJobsScreenProps = {
+  onBack: () => void;
+  onOpenJob: (job: PostedJob) => void;
+};
+
+const formatJobDate = (date: Date) => date.toLocaleDateString('en-IN', {
+  day: '2-digit', month: 'short', year: 'numeric',
+});
+
+function MyJobsScreen({ onBack, onOpenJob }: MyJobsScreenProps) {
+  const { colors } = useAppTheme();
+  const [jobs, setJobs] = useState<PostedJob[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    getMyJobs()
+      .then(setJobs)
+      .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Unable to load your jobs.'))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  return (
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <PostJobHeader onBack={onBack} title="My Jobs" />
+      {isLoading ? (
+        <View style={styles.centerState}><ActivityIndicator color={colors.primary} /><Text style={[styles.stateText, { color: colors.textMuted }]}>Loading your jobs...</Text></View>
+      ) : error ? (
+        <View style={styles.centerState}><Text style={[styles.stateText, { color: '#DC2626' }]}>{error}</Text></View>
+      ) : jobs.length === 0 ? (
+        <View style={styles.centerState}><Text style={[styles.emptyTitle, { color: colors.text }]}>No jobs posted yet</Text><Text style={[styles.stateText, { color: colors.textMuted }]}>Jobs you publish will appear here.</Text></View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          {jobs.map(job => (
+            <Pressable key={job.id} accessibilityRole="button" onPress={() => onOpenJob(job)} style={[styles.jobCard, { backgroundColor: colors.card }]}>
+              <View style={[styles.categoryIcon, { backgroundColor: '#F0E8FF' }]}><Text style={[styles.categorySymbol, { color: colors.primary }]}>▰</Text></View>
+              <View style={styles.jobCopy}>
+                <View style={styles.titleRow}>
+                  <Text numberOfLines={2} style={[styles.jobTitle, { color: colors.text }]}>{job.title}</Text>
+                  <View style={styles.statusBadge}><Text style={styles.statusText}>{job.status}</Text></View>
+                </View>
+                <Text numberOfLines={1} style={[styles.jobArea, { color: colors.textMuted }]}>⌖ {job.pickupDetails.address || 'Pickup location'}</Text>
+                <View style={styles.metaRow}>
+                  <Text style={[styles.budget, { color: colors.primary }]}>₹{job.budget}{job.budgetType === 'hourly' ? ' / hr' : ''}</Text>
+                  <Text style={[styles.date, { color: colors.textMuted }]}>{formatJobDate(job.jobDateTime)}</Text>
+                </View>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  budget: { fontSize: rf(14), fontWeight: '800' },
+  categoryIcon: { alignItems: 'center', borderRadius: 22, height: 44, justifyContent: 'center', width: 44 },
+  categorySymbol: { fontSize: rf(18), fontWeight: '800' },
+  centerState: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingHorizontal: 30 },
+  date: { fontSize: rf(10) },
+  emptyTitle: { fontSize: rf(16), fontWeight: '800', marginBottom: 7 },
+  jobArea: { fontSize: rf(11), marginTop: 5 },
+  jobCard: { alignItems: 'center', borderRadius: 12, elevation: 2, flexDirection: 'row', marginBottom: 12, padding: 12, shadowColor: '#64748B', shadowOffset: { height: 2, width: 0 }, shadowOpacity: 0.09, shadowRadius: 4 },
+  jobCopy: { flex: 1, marginLeft: 12 },
+  jobTitle: { flex: 1, fontSize: rf(14), fontWeight: '800', lineHeight: rf(18), paddingRight: 7 },
+  list: { padding: 12 },
+  metaRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  screen: { flex: 1 },
+  stateText: { fontSize: rf(12), lineHeight: rf(17), marginTop: 10, textAlign: 'center' },
+  statusBadge: { backgroundColor: '#DCFCE7', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 },
+  statusText: { color: '#15803D', fontSize: rf(9), fontWeight: '800', textTransform: 'capitalize' },
+  titleRow: { alignItems: 'flex-start', flexDirection: 'row' },
+});
+
+export default MyJobsScreen;
