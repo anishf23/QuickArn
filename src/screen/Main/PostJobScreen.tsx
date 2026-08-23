@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { BackHandler, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
@@ -60,14 +60,32 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
   const [dropLocation, setDropLocation] = useState('Satellite, Ahmedabad');
   const [editingLocation, setEditingLocation] = useState<PostLocationMode | null>(null);
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
       return;
     }
 
     onBack();
-  };
+  }, [currentStep, onBack]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isPublished) {
+        setIsPublished(false);
+      } else if (editingLocation) {
+        setEditingLocation(null);
+      } else if (datePickerTarget) {
+        setDatePickerTarget(null);
+      } else {
+        goBack();
+      }
+
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [datePickerTarget, editingLocation, goBack, isPublished]);
 
   const goToNextStep = () => {
     if (currentStep === 4) {
@@ -341,7 +359,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
         />
       )}
 
-      <Modal animationType="fade" transparent visible={isPublished}>
+      <Modal animationType="fade" onRequestClose={() => setIsPublished(false)} transparent visible={isPublished}>
         <View style={styles.successBackdrop}>
           <View style={[styles.successCard, { backgroundColor: colors.card }]}>
             <View style={styles.successHalo}>

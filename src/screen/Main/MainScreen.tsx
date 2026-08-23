@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { BackHandler, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
@@ -56,6 +56,59 @@ function MainScreen({ navigation, route }: Props) {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isViewingPersonalProfile, setIsViewingPersonalProfile] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isViewingPersonalProfile) {
+        setIsViewingPersonalProfile(false);
+      } else if (isEditingProfile) {
+        setIsEditingProfile(false);
+      } else if (isVerifyingProfile) {
+        setIsVerifyingProfile(false);
+      } else if (isViewingNotifications) {
+        setIsViewingNotifications(false);
+      } else if (isViewingWallet) {
+        setIsViewingWallet(false);
+      } else if (isSelectingLocation) {
+        setIsSelectingLocation(false);
+      } else if (isViewingMyPortfolio) {
+        setIsViewingMyPortfolio(false);
+      } else if (isViewingMyBids) {
+        setIsViewingMyBids(false);
+      } else if (isPlacingBid) {
+        setIsPlacingBid(false);
+      } else if (isViewingJobDetails) {
+        setIsViewingJobDetails(false);
+      } else if (isBrowsingJobs) {
+        setIsBrowsingJobs(false);
+      } else if (isViewingSingleChat) {
+        setIsViewingSingleChat(false);
+      } else if (activeTab !== 'Home') {
+        setActiveTab('Home');
+      } else {
+        // Home is the app root, so retain Android's normal back-to-exit behavior.
+        return false;
+      }
+
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [
+    activeTab,
+    isBrowsingJobs,
+    isEditingProfile,
+    isPlacingBid,
+    isSelectingLocation,
+    isVerifyingProfile,
+    isViewingJobDetails,
+    isViewingMyBids,
+    isViewingMyPortfolio,
+    isViewingNotifications,
+    isViewingPersonalProfile,
+    isViewingSingleChat,
+    isViewingWallet,
+  ]);
 
   const handleLogout = async () => {
     try {
@@ -216,7 +269,7 @@ const styles = StyleSheet.create({
     paddingTop: hp(1),
   },
   tabButton: { alignItems: 'center', flex: 1, paddingVertical: 5 },
-  tabIcon: { height: rf(18), width: rf(18) },
+  tabIcon: { height: rf(16), width: rf(16) },
   tabLabel: { fontSize: rf(12), fontWeight: '700', marginTop: 3 },
   title: { fontSize: rf(26), fontWeight: '800' },
 });

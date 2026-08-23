@@ -24,17 +24,21 @@ function PersonAvatar({ onPress }: { onPress: () => void }) {
 
 function HomeScreen({ address, isOnline, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onProfilePress, onViewAll, onWalletPress }: HomeScreenProps) {
   const { colors } = useAppTheme();
+  const fullAddress = address?.trim() || 'Choose your location';
+  const areaName = fullAddress.split(',')[0]?.trim() || 'Select Location';
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.primary }]} edges={['top']}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.primary }]} edges={['left','right']}>
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <View style={styles.headerLocation}>
           <Pressable accessibilityLabel="Change location" accessibilityRole="button" onPress={onLocationPress} style={styles.locationRow}>
             <Image source={require('../../../images/marker.png')} style={styles.locationIcon} resizeMode="contain" />
-            <Text numberOfLines={1} style={styles.locationText}>{address || 'Select Location'}</Text>
+            <View style={styles.locationCopy}>
+              <Text numberOfLines={1} style={styles.areaName}>{areaName}</Text>
+              <Text numberOfLines={1} style={styles.fullAddress}>{fullAddress}</Text>
+            </View>
             <Image source={require('../../../images/downarrow.png')} style={styles.locationArrow} resizeMode="contain" />
           </Pressable>
-          <Text style={styles.screenTitle}>Home</Text>
         </View>
         <View style={styles.headerActions}>
           <Pressable accessibilityLabel="Open wallet" accessibilityRole="button" onPress={onWalletPress} style={styles.walletWrap}>
@@ -108,7 +112,11 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 10, paddingTop: 13 },
   distanceBadge: { backgroundColor: '#F0E8FF', borderRadius: 4, marginLeft: 12, paddingHorizontal: 7, paddingVertical: 2 },
   distanceText: { fontSize: rf(10), fontWeight: '700' },
-  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 12, paddingHorizontal: 14, paddingTop: 3 },
+  areaName: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '800' },
+  fullAddress: { color: '#FFFFFF', fontSize: rf(9), marginTop: 1, opacity: 0.82 },
+  header: { alignItems: 'center', flexDirection: 'row',
+     justifyContent: 'space-between', minHeight: hp(6), 
+     paddingBottom: 7, paddingHorizontal: 14, paddingTop: 2 },
   headerActions: { alignItems: 'center', flexDirection: 'row' },
   headerLocation: { flex: 1, paddingRight: 8 },
   jobArea: { fontSize: rf(11), marginTop: 5 },
@@ -118,10 +126,10 @@ const styles = StyleSheet.create({
   jobPrice: { fontSize: rf(12), fontWeight: '800' },
   jobTitle: { fontSize: rf(13), fontWeight: '700' },
   jobsList: { marginTop: 1 },
-  locationArrow: { height: 12, marginLeft: 5, tintColor: '#FFFFFF', width: 12 },
-  locationIcon: { height: 13, marginRight: 6, tintColor: '#FFFFFF', width: 13 },
-  locationRow: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', minHeight: 18 },
-  locationText: { color: '#FFFFFF', fontSize: rf(11), fontWeight: '600', maxWidth: 190, opacity: 0.92 },
+  locationArrow: { height: 10, marginLeft: 5, tintColor: '#FFFFFF', width: 10 },
+  locationCopy: { flex: 1, paddingRight: 3 },
+  locationIcon: { height: 16, marginRight: 7, tintColor: '#FFFFFF', width: 16 },
+  locationRow: { alignItems: 'center', flexDirection: 'row', minHeight: 34 },
   notificationIcon: { height: hp(2.8), tintColor: '#FFFFFF', width: hp(2.8) },
   notificationWrap: { alignItems: 'center', height: hp(4), justifyContent: 'center', width: hp(4) },
   onlineCard: { alignItems: 'center', borderRadius: 10, elevation: 4, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12, shadowColor: '#5F20B5', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 7 },
@@ -131,7 +139,6 @@ const styles = StyleSheet.create({
   onlineSubtitle: { fontSize: rf(9), marginTop: 2 },
   onlineTitle: { fontSize: rf(14), fontWeight: '800' },
   safeArea: { flex: 1 },
-  screenTitle: { color: '#FFFFFF', fontSize: rf(19), fontWeight: '800', letterSpacing: 0.1, marginTop: 3 },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, marginTop: hp(2.4), paddingHorizontal: 2 },
   sectionTitle: { fontSize: rf(16), fontWeight: '800' },
   statCard: { alignItems: 'center', borderRadius: 9, elevation: 1, flex: 1, marginHorizontal: 4, minHeight: 96, paddingHorizontal: 4, paddingTop: 12, shadowColor: '#64748B', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 2 },

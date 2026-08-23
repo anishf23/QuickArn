@@ -5,9 +5,11 @@ import { useCustomAlert } from '../../components/CustomAlert';
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { getCachedUserProfile, type StoredUserProfile } from '../../services/firebaseUser';
+import { RFValue } from 'react-native-responsive-fontsize';
+import { hp } from '../../utils/responsive';
 
 const profileItems = [
-  { icon: '▣', label: 'My Portfolio' },
+  // { icon: '▣', label: 'My Portfolio' },
   { icon: '₹', label: 'My Earnings' },
   { icon: '◇', label: 'My Bids' },
   { icon: '▤', label: 'Wallet' },
@@ -64,6 +66,7 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onW
     .join('')
     .toUpperCase();
   const skills = profile?.skills ?? [];
+  const isCustomer = profile?.role === 'customer';
 
   return (
     <ScrollView
@@ -87,37 +90,41 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onW
         </View>
       </View>
 
-      <View style={styles.verificationSection}>
-        <Text style={[styles.verificationHeading, { color: colors.textMuted }]}>VERIFICATION</Text>
-        {verificationItems.map(item => (
-          <Pressable key={item.label} accessibilityRole="button" style={styles.verificationCard}>
-            <View style={styles.verificationIcon}>
-              <Text style={[styles.verificationSymbol, { color: colors.primary }]}>{item.icon}</Text>
-            </View>
-            <View style={styles.verificationCopy}>
-              <Text style={[styles.verificationLabel, { color: colors.text }]}>{item.label}</Text>
-              <Text style={[styles.verificationDetail, { color: colors.textMuted }]}>{item.detail}</Text>
-            </View>
-            <Text style={[styles.verifyText, { color: colors.primary }]}>Verify</Text>
-            <Text style={[styles.verificationArrow, { color: colors.primary }]}>›</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.skillsSection}>
-        <Text style={[styles.skillsHeading, { color: colors.text }]}>My Skills</Text>
-        <View style={styles.skillList}>
-          {skills.map(skill => (
-            <View key={skill} style={[styles.skillChip, { backgroundColor: '#F0E8FF' }]}>
-              <Text style={[styles.skillChipText, { color: colors.primary }]}>{skill}</Text>
-            </View>
+      {!isCustomer && (
+        <View style={styles.verificationSection}>
+          <Text style={[styles.verificationHeading, { color: colors.textMuted }]}>VERIFICATION</Text>
+          {verificationItems.map(item => (
+            <Pressable key={item.label} accessibilityRole="button" style={styles.verificationCard}>
+              <View style={styles.verificationIcon}>
+                <Text style={[styles.verificationSymbol, { color: colors.primary }]}>{item.icon}</Text>
+              </View>
+              <View style={styles.verificationCopy}>
+                <Text style={[styles.verificationLabel, { color: colors.text }]}>{item.label}</Text>
+                <Text style={[styles.verificationDetail, { color: colors.textMuted }]}>{item.detail}</Text>
+              </View>
+              <Text style={[styles.verifyText, { color: colors.primary }]}>Verify</Text>
+              <Text style={[styles.verificationArrow, { color: colors.primary }]}>›</Text>
+            </Pressable>
           ))}
-          {skills.length === 0 ? <Text style={[styles.emptySkillsText, { color: colors.textMuted }]}>No skills added yet.</Text> : null}
         </View>
-      </View>
+      )}
+
+      {!isCustomer && (
+        <View style={styles.skillsSection}>
+          <Text style={[styles.skillsHeading, { color: colors.text }]}>My Skills</Text>
+          <View style={styles.skillList}>
+            {skills.map(skill => (
+              <View key={skill} style={[styles.skillChip, { backgroundColor: '#F0E8FF' }]}>
+                <Text style={[styles.skillChipText, { color: colors.primary }]}>{skill}</Text>
+              </View>
+            ))}
+            {skills.length === 0 ? <Text style={[styles.emptySkillsText, { color: colors.textMuted }]}>No skills added yet.</Text> : null}
+          </View>
+        </View>
+      )}
 
       <View style={styles.menu}>
-        {profileItems.map(item => (
+        {profileItems.filter(item => !isCustomer || item.label !== 'My Earnings').map(item => (
           <Pressable
             key={item.label}
             accessibilityRole="button"
@@ -156,39 +163,42 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onW
 }
 
 const styles = StyleSheet.create({
-  arrow: { fontSize: 24, fontWeight: '300', lineHeight: 23 },
+  arrow: { fontSize: RFValue(26), fontWeight: '300', lineHeight: 23 },
   avatar: { alignItems: 'center', backgroundColor: '#E5E0FF', borderRadius: 41, height: 82, justifyContent: 'center', width: 82 },
   avatarInitials: { color: '#665C78', fontSize: 15, fontWeight: '700' },
   editButton: { alignItems: 'center', borderRadius: 20, borderWidth: 1.5, marginTop: 10, paddingHorizontal: 18, paddingVertical: 8 },
-  editText: { fontSize: 11, fontWeight: '700' },
-  emptySkillsText: { fontSize: 11, marginTop: 2 },
+  editText: { fontSize: RFValue(12), fontWeight: '700' },
+  emptySkillsText: { fontSize: RFValue(10), marginTop: 2 },
   menu: { paddingHorizontal: 18, paddingTop: 19 },
-  menuIcon: { fontSize: 16, fontWeight: '700', textAlign: 'center', width: 26 },
+  menuIcon: { fontSize: 16, fontWeight: '700', textAlign: 'center', width: RFValue(24) },
   menuItem: { alignItems: 'center', borderBottomColor: '#E9E2EE', borderBottomWidth: 1, flexDirection: 'row', height: 48, paddingHorizontal: 6 },
-  menuLabel: { flex: 1, fontSize: 13, fontWeight: '600', marginLeft: 10 },
-  name: { fontSize: 16, fontWeight: '800' },
+  menuLabel: { flex: 1, fontSize: RFValue(14), fontWeight: '600', marginLeft: 10 },
+  name: { fontSize: RFValue(14), fontWeight: '800' },
   profileDetails: { alignItems: 'center', marginTop: 12 },
   profileHeader: { alignItems: 'center', paddingBottom: 20, paddingTop: 27 },
   ratingRow: { alignItems: 'center', flexDirection: 'row', marginTop: 4 },
-  ratingText: { fontSize: 10, marginLeft: 4 },
+  ratingText: { fontSize: RFValue(11), marginLeft: 4 },
   screen: { flex: 1 },
   scrollContent: { paddingBottom: 24 },
   skillChip: { alignItems: 'center', borderRadius: 16, flexBasis: '31%', height: 30, justifyContent: 'center', marginBottom: 8 },
   skillChipText: { fontSize: 10, fontWeight: '700' },
   skillList: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 10 },
-  skillsHeading: { fontSize: 13, fontWeight: '800' },
+  skillsHeading: { fontSize: RFValue(14), fontWeight: '800' },
   skillsSection: { paddingHorizontal: 18, paddingTop: 20 },
-  star: { color: '#7D00F5', fontSize: 11 },
-  verificationArrow: { fontSize: 20, lineHeight: 18, marginLeft: 5 },
-  verificationCard: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#E4D9EB', borderRadius: 10, borderWidth: 1, flexDirection: 'row', marginTop: 7, minHeight: 68, paddingHorizontal: 13 },
+  star: { color: '#7D00F5', fontSize: RFValue(11) },
+  verificationArrow: { fontSize: RFValue(18), lineHeight: 18, marginLeft: 5 },
+  verificationCard: { alignItems: 'center', backgroundColor: '#FFFFFF', 
+    borderColor: '#E4D9EB', borderRadius: 10, borderWidth: 1,
+     flexDirection: 'row', marginTop: 7, minHeight: hp(7), paddingHorizontal: 13 },
   verificationCopy: { flex: 1, marginLeft: 9 },
-  verificationDetail: { fontSize: 9, lineHeight: 12, marginTop: 2 },
-  verificationHeading: { fontSize: 10, fontWeight: '800', marginLeft: 6 },
-  verificationIcon: { alignItems: 'center', backgroundColor: '#EEE8FF', borderRadius: 18, height: 36, justifyContent: 'center', width: 36 },
-  verificationLabel: { fontSize: 11, fontWeight: '700' },
+  verificationDetail: { fontSize: RFValue(10), lineHeight: 12, marginTop: 2 },
+  verificationHeading: { fontSize: RFValue(14), fontWeight: '800', marginLeft: 6 },
+  verificationIcon: { alignItems: 'center', backgroundColor: '#EEE8FF', borderRadius: 18, 
+    height: hp(3.5), justifyContent: 'center', width: hp(3.5) },
+  verificationLabel: { fontSize: RFValue(14), fontWeight: '700' },
   verificationSection: { paddingHorizontal: 18, paddingTop: 4 },
   verificationSymbol: { fontSize: 14, fontWeight: '800' },
-  verifyText: { fontSize: 9, fontWeight: '800' },
+  verifyText: { fontSize: RFValue(8), fontWeight: '800' },
 });
 
 export default ProfileScreen;
