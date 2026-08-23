@@ -9,6 +9,8 @@ import PostJobHeader from './components/PostJobHeader';
 type JobDetailsScreenProps = {
   job?: PostedJob | null;
   onBack: () => void;
+  onCloseJob?: () => void;
+  onEditJob?: () => void;
   onPlaceBid: () => void;
 };
 
@@ -16,7 +18,7 @@ const formatJobDateTime = (date: Date) => date.toLocaleString('en-IN', {
   day: '2-digit', hour: '2-digit', minute: '2-digit', month: 'short', year: 'numeric',
 });
 
-function JobDetailsScreen({ job, onBack, onPlaceBid }: JobDetailsScreenProps) {
+function JobDetailsScreen({ job, onBack, onCloseJob, onEditJob, onPlaceBid }: JobDetailsScreenProps) {
   const { colors } = useAppTheme();
   const title = job?.title ?? 'Need Delivery Boy for Documents';
   const description = job?.description ?? 'Need a reliable person to quickly pick up sensitive documents from branch in Paldi and deliver them securely to a client office in the Satellite area.\nMust have own vehicle.';
@@ -102,9 +104,20 @@ function JobDetailsScreen({ job, onBack, onPlaceBid }: JobDetailsScreenProps) {
         </View>
       </ScrollView>
 
-      {!job && <View style={[styles.footer, { backgroundColor: colors.card }]}>
-        <Pressable accessibilityRole="button" onPress={onPlaceBid} style={[styles.bidButton, { backgroundColor: colors.primary }]}><Text style={styles.bidText}>Place Bid</Text></Pressable>
-      </View>}
+      {job ? (
+        <View style={[styles.footer, styles.ownerFooter, { backgroundColor: colors.card }]}>
+          <Pressable accessibilityRole="button" onPress={onEditJob} style={[styles.ownerButton, styles.editButton, { borderColor: colors.primary }]}>
+            <Text style={[styles.editButtonText, { color: colors.primary }]}>Edit</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={onCloseJob} style={[styles.ownerButton, { backgroundColor: '#DC2626' }]}>
+            <Text style={styles.ownerButtonText}>Close Job</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={[styles.footer, { backgroundColor: colors.card }]}>
+          <Pressable accessibilityRole="button" onPress={onPlaceBid} style={[styles.bidButton, { backgroundColor: colors.primary }]}><Text style={styles.bidText}>Place Bid</Text></Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -119,6 +132,8 @@ const styles = StyleSheet.create({
   dateText: { fontSize: rf(10), marginTop: 3 },
   description: { fontSize: rf(12), lineHeight: rf(19), marginTop: 10 },
   footer: { paddingHorizontal: 5, paddingVertical: 7 },
+  editButton: { backgroundColor: 'transparent', borderWidth: 1.2 },
+  editButtonText: { fontSize: rf(13), fontWeight: '800' },
   infoCard: { alignItems: 'center', borderRadius: 12, elevation: 2, flexDirection: 'row', marginTop: 12, padding: 13, shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.09, shadowRadius: 5 },
   infoIcon: { alignItems: 'center', backgroundColor: '#F0E5FF', borderRadius: 17, height: 34, justifyContent: 'center', marginRight: 12, width: 34 },
   jobSummary: { borderRadius: 12, elevation: 2, padding: 14, shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.09, shadowRadius: 5 },
@@ -129,6 +144,9 @@ const styles = StyleSheet.create({
   locationDetailTitle: { fontSize: rf(10), fontWeight: '800', marginTop: 12 },
   openBadge: { alignItems: 'center', backgroundColor: '#1CE7B5', borderRadius: 12, height: 24, justifyContent: 'center', marginLeft: 7, marginTop: 1, paddingHorizontal: 11 },
   openText: { color: '#08795E', fontSize: rf(10), fontWeight: '800' },
+  ownerButton: { alignItems: 'center', borderRadius: 7, flex: 1, height: 45, justifyContent: 'center' },
+  ownerButtonText: { color: '#FFFFFF', fontSize: rf(13), fontWeight: '800' },
+  ownerFooter: { flexDirection: 'row', gap: 10 },
   posterAvatar: { alignItems: 'center', backgroundColor: '#D7E4F4', borderRadius: 20, height: 40, justifyContent: 'center', marginRight: 12, width: 40 },
   posterCard: { marginTop: 12 },
   posterInitials: { color: '#354155', fontSize: rf(12), fontWeight: '800' },

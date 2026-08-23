@@ -37,6 +37,8 @@ const emptyLocationDetails: LocationDetails = {
   name: '',
   nearbyLocation: '',
   phoneNumber: '',
+  latitude: null,
+  longitude: null,
 };
 
 const displayLocation = (details: LocationDetails) => [details.address, details.nearbyLocation]
@@ -66,6 +68,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
   const [categories, setCategories] = useState<JobCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [description, setDescription] = useState(
     '',
@@ -115,7 +118,10 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
         setCategories(nextCategories);
         setSelectedCategory(current => nextCategories.some(category => category.name === current)
           ? current
-          : nextCategories[0]?.name ?? '');
+          : '');
+        setSelectedCategoryId(current => nextCategories.some(category => category.id === current)
+          ? current
+          : '');
       } catch {
         if (isMounted) {
           setCategories([]);
@@ -164,7 +170,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
   const goToNextStep = async () => {
     const nextErrors: FormErrors = {};
 
-    if (currentStep === 1 && !selectedCategory) {
+    if (currentStep === 1 && (!selectedCategory || !selectedCategoryId)) {
       nextErrors.category = 'Please select a category.';
     }
 
@@ -217,6 +223,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
           budget: Number(budget),
           budgetType: isDeliveryCategory ? 'fixed' : 'hourly',
           category: selectedCategory,
+          categoryId: selectedCategoryId,
           closeDateTime,
           description,
           dropDetails,
@@ -328,6 +335,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
                     accessibilityState={{ selected }}
                     onPress={() => {
                       setSelectedCategory(category.name);
+                      setSelectedCategoryId(category.id);
                       clearError('category');
                     }}
                     style={[styles.categoryCard, selected && styles.categoryCardSelected, errors.category && styles.fieldErrorBorder]}
@@ -343,6 +351,11 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
         ) : currentStep === 2 ? (
           <View style={styles.detailsForm}>
             <Text style={[styles.title, { color: colors.text }]}>Job Details</Text>
+
+            <View style={styles.selectedCategoryBanner}>
+              <Text style={[styles.selectedCategoryLabel, { color: colors.textMuted }]}>Selected Category</Text>
+              <Text style={[styles.selectedCategoryValue, { color: colors.primary }]}>{selectedCategory}</Text>
+            </View>
 
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Title</Text>
             <TextInput
@@ -534,9 +547,9 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
 
       <Pressable
         accessibilityRole="button"
-        disabled={(currentStep === 1 && !selectedCategory) || isPublishing}
+        disabled={(currentStep === 1 && (!selectedCategory || !selectedCategoryId)) || isPublishing}
         onPress={goToNextStep}
-        style={[styles.nextButton, { backgroundColor: currentStep === 1 && !selectedCategory ? '#CBD5E1' : colors.primary }]}
+        style={[styles.nextButton, { backgroundColor: currentStep === 1 && (!selectedCategory || !selectedCategoryId) ? '#CBD5E1' : colors.primary }]}
       >
         <Text style={styles.nextLabel}>{isPublishing ? 'Publishing...' : currentStep === 4 ? 'Publish Job' : 'Next'}</Text>
       </Pressable>
@@ -617,6 +630,9 @@ const styles = StyleSheet.create({
   reviewRow: { borderBottomColor: '#E5E7EB', borderBottomWidth: StyleSheet.hairlineWidth, paddingBottom: 9, paddingTop: 11 },
   reviewValue: { flex: 1, fontSize: rf(11), fontWeight: '600' },
   reviewValueRow: { alignItems: 'center', flexDirection: 'row' },
+  selectedCategoryBanner: { alignItems: 'center', backgroundColor: '#F0E8FF', borderRadius: 7, flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, paddingHorizontal: 11, paddingVertical: 8 },
+  selectedCategoryLabel: { fontSize: rf(10), fontWeight: '700' },
+  selectedCategoryValue: { fontSize: rf(12), fontWeight: '800' },
   successActions: { marginTop: 28 },
   successBackdrop: { alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.42)', flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
   successCard: { borderRadius: 18, elevation: 12, maxWidth: 360, padding: 24, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 18, width: '100%' },

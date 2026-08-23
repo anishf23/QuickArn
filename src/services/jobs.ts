@@ -1,5 +1,5 @@
 import { getAuth } from '@react-native-firebase/auth';
-import { addDoc, collection, getDocs, getFirestore, query, serverTimestamp, Timestamp, where } from '@react-native-firebase/firestore';
+import { collection, doc, getDocs, getFirestore, query, serverTimestamp, setDoc, Timestamp, where } from '@react-native-firebase/firestore';
 
 import { ensureInternetConnection } from './internetCheck';
 
@@ -9,12 +9,15 @@ export type JobLocationDetails = {
   name: string;
   nearbyLocation: string;
   phoneNumber: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 export type CreateJobInput = {
   budget: number;
   budgetType: 'fixed' | 'hourly';
   category: string;
+  categoryId: string;
   closeDateTime: Date;
   description: string;
   dropDetails: JobLocationDetails;
@@ -27,6 +30,7 @@ export type CreateJobInput = {
 export type PostedJob = Omit<CreateJobInput, 'jobDateTime' | 'closeDateTime'> & {
   createdAt?: Date;
   id: string;
+  jobId: string;
   jobDateTime: Date;
   closeDateTime: Date;
   ownerId: string;
@@ -52,7 +56,9 @@ export async function createJob(input: CreateJobInput) {
     throw new Error('Your login session has expired. Please sign in again.');
   }
 
-  const reference = await addDoc(collection(getFirestore(), 'jobs'), {
+  const reference = doc(collection(getFirestore(), 'jobs'));
+  await setDoc(reference, {
+    jobId: reference.id,
     ownerId: user.uid,
     ownerMobileNumber: user.phoneNumber ?? '',
     category: input.category,
@@ -87,15 +93,17 @@ export async function getMyJobs(): Promise<PostedJob[]> {
   const snapshot = await getDocs(jobsQuery);
 
   return snapshot.docs.map(document => {
-    const data = document.data() as Omit<PostedJob, 'id' | 'jobDateTime' | 'closeDateTime' | 'createdAt'> & {
+    const data = document.data() as Omit<PostedJob, 'id' | 'jobId' | 'jobDateTime' | 'closeDateTime' | 'createdAt'> & {
       createdAt?: unknown;
       jobDateTime?: unknown;
       closeDateTime?: unknown;
+      jobId?: unknown;
     };
 
     return {
       ...data,
       id: document.id,
+      jobId: typeof data.jobId === 'string' ? data.jobId : document.id,
       jobDateTime: asDate(data.jobDateTime),
       closeDateTime: asDate(data.closeDateTime),
       createdAt: data.createdAt ? asDate(data.createdAt) : undefined,

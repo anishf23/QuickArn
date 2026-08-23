@@ -160,9 +160,9 @@ function MainScreen({ navigation, route }: Props) {
         onSaveAddress={savedAddress => {
           setSavedAddresses(addresses => [savedAddress, ...addresses.filter(item => item.label !== savedAddress.label)]);
         }}
-        onSelectLocation={address => {
-          setSelectedAddress(address);
-          setRecentAddresses(addresses => [address, ...addresses.filter(item => item !== address)].slice(0, 5));
+        onSelectLocation={location => {
+          setSelectedAddress(location.address);
+          setRecentAddresses(addresses => [location.address, ...addresses.filter(item => item !== location.address)].slice(0, 5));
           setIsSelectingLocation(false);
         }}
       />

@@ -15,6 +15,8 @@ export type LocationDetails = {
   name: string;
   nearbyLocation: string;
   phoneNumber: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 type FormField = 'name' | 'phoneNumber' | 'address' | 'floorDetails' | 'nearbyLocation';
 type FormErrors = Partial<Record<FormField, string>>;
@@ -33,6 +35,8 @@ function PostLocationDetailsScreen({ initialDetails, mode, onBack, onConfirm }: 
   const [address, setAddress] = useState(initialDetails.address);
   const [floorDetails, setFloorDetails] = useState(initialDetails.floorDetails);
   const [nearbyLocation, setNearbyLocation] = useState(initialDetails.nearbyLocation);
+  const [latitude, setLatitude] = useState(initialDetails.latitude);
+  const [longitude, setLongitude] = useState(initialDetails.longitude);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [recentAddresses, setRecentAddresses] = useState<string[]>([]);
@@ -85,6 +89,8 @@ function PostLocationDetailsScreen({ initialDetails, mode, onBack, onConfirm }: 
         name: name.trim(),
         nearbyLocation: nearbyLocation.trim(),
         phoneNumber: phoneDigits,
+        latitude,
+        longitude,
       });
     }
   };
@@ -98,10 +104,12 @@ function PostLocationDetailsScreen({ initialDetails, mode, onBack, onConfirm }: 
         onSaveAddress={savedAddress => {
           setSavedAddresses(addresses => [savedAddress, ...addresses.filter(item => item.label !== savedAddress.label)]);
         }}
-        onSelectLocation={selectedAddress => {
-          setAddress(selectedAddress);
+        onSelectLocation={selectedLocation => {
+          setAddress(selectedLocation.address);
+          setLatitude(selectedLocation.latitude);
+          setLongitude(selectedLocation.longitude);
           clearError('address');
-          setRecentAddresses(addresses => [selectedAddress, ...addresses.filter(item => item !== selectedAddress)].slice(0, 5));
+          setRecentAddresses(addresses => [selectedLocation.address, ...addresses.filter(item => item !== selectedLocation.address)].slice(0, 5));
           setIsSearchingLocation(false);
         }}
       />

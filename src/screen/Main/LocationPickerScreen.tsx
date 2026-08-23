@@ -14,7 +14,13 @@ type LocationPickerScreenProps = {
   savedAddresses: SavedAddress[];
   onBack: () => void;
   onSaveAddress: (savedAddress: SavedAddress) => void;
-  onSelectLocation: (address: string) => void;
+  onSelectLocation: (location: SelectedLocation) => void;
+};
+
+export type SelectedLocation = {
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 export type SavedAddress = {
@@ -129,9 +135,9 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
   const reverseGeocodeAndSelect = async (latitude: number, longitude: number) => {
     try {
       const resolvedLocation = await reverseGeocode(latitude, longitude);
-      selectAddress(resolvedLocation.address);
+      selectAddress(resolvedLocation.address, true, { latitude, longitude });
     } catch {
-      selectAddress('Current location');
+      selectAddress('Current location', true, { latitude, longitude });
     } finally {
       setIsLocating(false);
     }
@@ -194,8 +200,13 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
     searchInputRef.current?.focus();
   };
 
-  const selectSearchResult = (address: string) => {
-    selectAddress(address);
+  const selectSearchResult = (result: NominatimResult) => {
+    const latitude = Number(result.lat);
+    const longitude = Number(result.lon);
+    selectAddress(result.display_name, true, {
+      latitude: Number.isFinite(latitude) ? latitude : null,
+      longitude: Number.isFinite(longitude) ? longitude : null,
+    });
   };
 
   const rememberRecentAddress = (address: string) => {
@@ -204,7 +215,48 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
     AsyncStorage.setItem(RECENT_ADDRESSES_STORAGE_KEY, JSON.stringify(nextRecentAddresses)).catch(() => {});
   };
 
-  const selectAddress = (address: string, saveAsRecent = true) => {
+  const resolveCoordinates = async (address: string) => {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(address)}`,
+      { headers: nominatimHeaders },
+    );
+    const matches = (await response.json()) as NominatimResult[];
+    const match = matches[0];
+
+    if (!match) {
+      return { latitude: null, longitude: null };
+    }
+
+    const latitude = Number(match.lat);
+    const longitude = Number(match.lon);
+    return {
+      latitude: Number.isFinite(latitude) ? latitude : null,
+      longitude: Number.isFinite(longitude) ? longitude : null,
+    };
+  };
+
+  const emitSelectedLocation = async (
+    address: string,
+    coordinates: Omit<SelectedLocation, 'address'>,
+  ) => {
+    let resolvedCoordinates = coordinates;
+
+    if (coordinates.latitude === null || coordinates.longitude === null) {
+      try {
+        resolvedCoordinates = await resolveCoordinates(address);
+      } catch {
+        // The address remains usable even if coordinate lookup is unavailable.
+      }
+    }
+
+    onSelectLocation({ address, ...resolvedCoordinates });
+  };
+
+  const selectAddress = (
+    address: string,
+    saveAsRecent = true,
+    coordinates: Omit<SelectedLocation, 'address'> = { latitude: null, longitude: null },
+  ) => {
     if (isSavingAddress) {
       setPendingSavedAddress(address);
       return;
@@ -212,7 +264,7 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
     if (saveAsRecent) {
       rememberRecentAddress(address);
     }
-    onSelectLocation(address);
+    emitSelectedLocation(address, coordinates).catch(() => {});
   };
 
   const saveAddressWithLabel = (label: SavedAddress['label']) => {
@@ -226,7 +278,7 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
     setStoredAddresses(nextSavedAddresses);
     AsyncStorage.setItem(SAVED_ADDRESSES_STORAGE_KEY, JSON.stringify(nextSavedAddresses)).catch(() => {});
     onSaveAddress(savedAddress);
-    onSelectLocation(pendingSavedAddress);
+    emitSelectedLocation(pendingSavedAddress, { latitude: null, longitude: null }).catch(() => {});
     setPendingSavedAddress(null);
     setIsSavingAddress(false);
   };
@@ -297,7 +349,7 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
                 <Pressable
                   key={result.place_id}
                   accessibilityRole="button"
-                  onPress={() => selectSearchResult(result.display_name)}
+                  onPress={() => selectSearchResult(result)}
                   style={styles.result}
                 >
                   <Text style={[styles.resultPin,{color:colors.primary}]}>●</Text>
