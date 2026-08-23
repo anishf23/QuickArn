@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
@@ -13,6 +13,7 @@ const profileItems = [
   { icon: '?', label: 'Help & Support' },
   { icon: '?', label: 'Privacy Policy' },
   { icon: '?', label: 'Terms & Conditions' },
+  { icon: '⎋', label: 'Log Out' },
 ];
 
 const verificationItems = [
@@ -41,9 +42,10 @@ type ProfileScreenProps = {
   onMyBids: () => void;
   onMyPortfolio: () => void;
   onWallet: () => void;
+  onLogout: () => void;
 };
 
-function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onWallet }: ProfileScreenProps) {
+function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onWallet, onLogout }: ProfileScreenProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -101,7 +103,28 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onW
           <Pressable
             key={item.label}
             accessibilityRole="button"
-            onPress={item.label === 'My Bids' ? onMyBids : item.label === 'My Earnings' ? onMyPortfolio : item.label === 'Wallet' ? onWallet : item.label === 'Language' ? onLanguage : undefined}
+            onPress={
+              item.label === 'My Bids'
+                ? onMyBids
+                : item.label === 'My Earnings'
+                ? onMyPortfolio
+                : item.label === 'Wallet'
+                ? onWallet
+                : item.label === 'Language'
+                ? onLanguage
+                : item.label === 'Log Out'
+                ? () => {
+                    Alert.alert(
+                      'Log Out',
+                      'Are you sure you want to log out?',
+                      [
+                        { style: 'cancel', text: 'Cancel' },
+                        { onPress: onLogout, style: 'destructive', text: 'Log Out' },
+                      ],
+                    );
+                  }
+                : undefined
+            }
             style={styles.menuItem}
           >
             <Text style={[styles.menuIcon, { color: colors.textMuted }]}>{item.icon}</Text>

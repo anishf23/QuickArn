@@ -22,8 +22,8 @@ import type { SavedAddress } from './LocationPickerScreen';
 import PostJobScreen from './PostJobScreen';
 import ProfileScreen from './ProfileScreen';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
-import { LocalizedText as Text } from '../../localization/AppLocalization';
-import { updateCurrentUser } from '../../services/firebaseUser';
+import { LocalizedText as Text, useLocalization } from '../../localization/AppLocalization';
+import { signOutCurrentUser, updateCurrentUser } from '../../services/firebaseUser';
 import { hp, rf } from '../../utils/responsive';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
@@ -38,6 +38,7 @@ const tabs: Array<{ icon: number; name: TabName }> = [
 
 function MainScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
+  const { resetLanguage } = useLocalization();
   const [activeTab, setActiveTab] = useState<TabName>('Home');
   const [isBrowsingJobs, setIsBrowsingJobs] = useState(false);
   const [isViewingJobDetails, setIsViewingJobDetails] = useState(false);
@@ -55,6 +56,17 @@ function MainScreen({ navigation, route }: Props) {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isViewingPersonalProfile, setIsViewingPersonalProfile] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await signOutCurrentUser();
+    } catch {
+      // Always remove local session data and return to Login.
+    } finally {
+      await resetLanguage().catch(() => {});
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    }
+  };
 
   const content =
     isViewingPersonalProfile ? (
@@ -127,7 +139,9 @@ function MainScreen({ navigation, route }: Props) {
       <PostJobScreen onBack={() => setActiveTab('Home')} />
     ) : activeTab === 'Chat' ? (
       isViewingSingleChat ? <ChatScreen onBack={() => setIsViewingSingleChat(false)} /> : <ChatListScreen onOpenChat={() => setIsViewingSingleChat(true)} />
-    ) : <ProfileScreen onEditProfile={() => setIsEditingProfile(true)} onLanguage={() => navigation.navigate('LanguageSelection', { mode: 'profile' })} onMyBids={() => setIsViewingMyBids(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} />;
+    ) : <ProfileScreen onEditProfile={() => setIsEditingProfile(true)} onLanguage={() => navigation.navigate('LanguageSelection', { mode: 'profile' })} onMyBids={() => setIsViewingMyBids(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} onLogout={() => {
+      handleLogout().catch(() => {});
+    }} />;
 
   return (
     <SafeAreaView

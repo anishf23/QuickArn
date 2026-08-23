@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { LocalizedText as Text } from '../localization/AppLocalization';
+import { subscribeToAuthState } from '../services/firebaseUser';
 import { brandColors, useAppTheme } from '../theme/AppTheme';
 import { rf } from '../utils/responsive';
 
@@ -13,9 +14,31 @@ function SplashScreen({ navigation }: Props) {
   const { colors } = useAppTheme();
 
   useEffect(() => {
-    const timeout = setTimeout(() => navigation.replace('Login'), 2500);
+    let hasNavigated = false;
+    let navigationTimer: ReturnType<typeof setTimeout> | undefined;
 
-    return () => clearTimeout(timeout);
+    const goToNextScreen = (isSignedIn: boolean) => {
+      if (hasNavigated) {
+        return;
+      }
+
+      hasNavigated = true;
+      navigation.replace(isSignedIn ? 'LocationAccess' : 'Login');
+    };
+
+    const unsubscribe = subscribeToAuthState(user => {
+      navigationTimer = setTimeout(() => goToNextScreen(Boolean(user)), 1800);
+    });
+
+    const fallbackTimer = setTimeout(() => goToNextScreen(false), 3000);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(fallbackTimer);
+      if (navigationTimer) {
+        clearTimeout(navigationTimer);
+      }
+    };
   }, [navigation]);
 
   return (

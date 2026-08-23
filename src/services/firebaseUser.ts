@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuth, signInWithPhoneNumber, type ConfirmationResult, type User } from '@react-native-firebase/auth';
+import { onAuthStateChanged, signOut } from '@react-native-firebase/auth';
 import { doc, getDoc, getFirestore, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
 import { getMessaging, getToken, onTokenRefresh, registerDeviceForRemoteMessages } from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
@@ -23,6 +25,22 @@ export async function confirmPhoneOtp(code: string) {
   const credential = await phoneConfirmation.confirm(code);
   phoneConfirmation = null;
   return credential.user;
+}
+
+export function subscribeToAuthState(callback: (user: User | null) => void) {
+  return onAuthStateChanged(getAuth(), callback);
+}
+
+export async function signOutCurrentUser() {
+  unsubscribeTokenRefresh?.();
+  unsubscribeTokenRefresh = null;
+  phoneConfirmation = null;
+
+  try {
+    await signOut(getAuth());
+  } finally {
+    await AsyncStorage.clear();
+  }
 }
 
 export async function getFcmToken() {

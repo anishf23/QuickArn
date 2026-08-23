@@ -5,10 +5,11 @@ import {
   Easing,
   PermissionsAndroid,
   Platform,
+  Pressable,
   StyleSheet,
   View,
 } from 'react-native';
-import Geolocation, { PositionError } from 'react-native-geolocation-service';
+import Geolocation, { GeoError, PositionError } from 'react-native-geolocation-service';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
@@ -21,15 +22,47 @@ type LocationPhase = 'intro' | 'fetching' | 'success' | 'error';
 type ReverseGeocodeResponse = {
   address?: {
     city?: string;
+    city_district?: string;
+    county?: string;
     town?: string;
     village?: string;
     suburb?: string;
     state?: string;
+    state_district?: string;
   };
   display_name?: string;
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LocationAccess'>;
+
+const isGeoError = (error: unknown): error is GeoError =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  'message' in error;
+
+const getPosition = (highAccuracy: boolean) =>
+  new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+    Geolocation.getCurrentPosition(
+      position => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      reject,
+      {
+        accuracy: highAccuracy
+          ? { android: 'high', ios: 'best' }
+          : { android: 'balanced', ios: 'nearestTenMeters' },
+        enableHighAccuracy: highAccuracy,
+        forceRequestLocation: true,
+        maximumAge: 0,
+        showLocationDialog: true,
+        timeout: highAccuracy ? 20000 : 12000,
+      },
+    );
+  });
 
 function LocationAccessScreen({ navigation }: Props) {
   const { colors, isDark } = useAppTheme();
@@ -67,9 +100,21 @@ function LocationAccessScreen({ navigation }: Props) {
 
   const getCurrentAddress = useCallback(
     async (latitude: number, longitude: number) => {
+      let address = `Current location (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
+      let locality = 'Current location';
+      let state = '';
+
       try {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+          {
+            headers: {
+              Accept: 'application/json',
+              'Accept-Language': 'en',
+              // Nominatim rejects anonymous mobile requests. Identify the app as required by its usage policy.
+              'User-Agent': 'QuickArn/1.0 (Android location lookup)',
+            },
+          },
         );
 
         if (!response.ok) {
@@ -77,81 +122,69 @@ function LocationAccessScreen({ navigation }: Props) {
         }
 
         const result = (await response.json()) as ReverseGeocodeResponse;
-        const locality =
-          result.address?.suburb ||
+        locality =
           result.address?.city ||
+          result.address?.state_district ||
           result.address?.town ||
           result.address?.village ||
+          result.address?.city_district ||
+          result.address?.county ||
+          result.address?.suburb ||
           'Current location';
 
-        const address =
+        address =
           result.display_name ||
-          'Your current address could not be identified.';
-
-        setLocationName(locality);
-        setLocationLabel(address);
-        await updateCurrentUser({
-          address,
-          city: locality,
-          state: result.address?.state || '',
-          latitude,
-          longitude,
-          isProfileCompleted: true,
-        }).catch(() => {});
-        navigation.replace('Main', { address });
+          address;
+        state = result.address?.state || '';
       } catch {
-        const address = 'Your current address could not be identified.';
-
-        setLocationName('Current location');
-        setLocationLabel(address);
-        await updateCurrentUser({
-          address,
-          city: 'Current location',
-          state: '',
-          latitude,
-          longitude,
-          isProfileCompleted: true,
-        }).catch(() => {});
-        navigation.replace('Main', { address });
+        // GPS coordinates are still useful when the reverse-geocoding service is unavailable.
       }
 
+      setLocationName(locality);
+      setLocationLabel(address);
       setPhase('success');
+
+      await updateCurrentUser({
+        address,
+        city: locality,
+        state,
+        latitude,
+        longitude,
+        isProfileCompleted: true,
+      });
+
+      navigation.replace('Main', { address });
     },
     [navigation],
   );
 
-  const fetchLocation = useCallback(() => {
+  const fetchLocation = useCallback(async () => {
     setPhase('fetching');
     setErrorMessage('');
 
-    Geolocation.getCurrentPosition(
-      position => {
-        const { latitude, longitude } = position.coords;
-        void getCurrentAddress(latitude, longitude);
-      },
-      error => {
-        if (error.code === PositionError.SETTINGS_NOT_SATISFIED) {
-          setErrorMessage(
-            'Turn on GPS or device location services, then reopen QuickArn.',
-          );
-        } else if (error.code === PositionError.PERMISSION_DENIED) {
-          setErrorMessage('Location permission was denied.');
-        } else {
-          setErrorMessage(
-            error.message || 'Unable to get your current location.',
-          );
-        }
-        setPhase('error');
-      },
-      {
-        accuracy: { android: 'high', ios: 'best' },
-        enableHighAccuracy: true,
-        forceRequestLocation: true,
-        showLocationDialog: true,
-        timeout: 15000,
-        maximumAge: 10000,
-      },
-    );
+    try {
+      let coordinates: { latitude: number; longitude: number };
+      try {
+        coordinates = await getPosition(true);
+      } catch {
+        coordinates = await getPosition(false);
+      }
+
+      await getCurrentAddress(coordinates.latitude, coordinates.longitude);
+    } catch (error) {
+      if (isGeoError(error) && error.code === PositionError.SETTINGS_NOT_SATISFIED) {
+        setErrorMessage('Turn on GPS or device location services, then try again.');
+      } else if (isGeoError(error) && error.code === PositionError.PERMISSION_DENIED) {
+        setErrorMessage('Location permission was denied. Please allow it in Settings.');
+      } else {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : 'Unable to save your current location. Please try again.',
+        );
+      }
+      setPhase('error');
+    }
   }, [getCurrentAddress]);
 
   const requestCurrentLocation = useCallback(async () => {
@@ -163,9 +196,7 @@ function LocationAccessScreen({ navigation }: Props) {
         ]);
         const allowed =
           permissions[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] ===
-            PermissionsAndroid.RESULTS.GRANTED ||
-          permissions[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] ===
-            PermissionsAndroid.RESULTS.GRANTED;
+          PermissionsAndroid.RESULTS.GRANTED;
 
         if (!allowed) {
           setErrorMessage(
@@ -251,6 +282,15 @@ function LocationAccessScreen({ navigation }: Props) {
         <Text style={[styles.description, { color: colors.textMuted }]}>
           {description}
         </Text>
+        {phase === 'error' ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={requestCurrentLocation}
+            style={[styles.retryButton, { backgroundColor: brandColors.blue }]}
+          >
+            <Text style={styles.retryText}>Try Again</Text>
+          </Pressable>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -305,6 +345,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 168,
   },
+  retryButton: {
+    alignSelf: 'center',
+    borderRadius: 12,
+    marginTop: 28,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+  },
+  retryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   safeArea: { flex: 1 },
   title: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
 });

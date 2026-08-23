@@ -7,6 +7,7 @@ export type AppLanguage = 'en' | 'gu';
 type LocalizationContextValue = {
   language: AppLanguage;
   setLanguage: (language: AppLanguage) => void;
+  resetLanguage: () => Promise<void>;
   t: (value: string) => string;
 };
 
@@ -58,6 +59,10 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
     setLanguage: nextLanguage => {
       setLanguageState(nextLanguage);
       AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage).catch(() => {});
+    },
+    resetLanguage: async () => {
+      setLanguageState('en');
+      await AsyncStorage.removeItem(LANGUAGE_STORAGE_KEY);
     },
     t: text => language === 'gu' ? gujaratiStrings[text] ?? text : text,
   }), [language]);
