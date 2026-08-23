@@ -1,7 +1,10 @@
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { useCustomAlert } from '../../components/CustomAlert';
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
+import { getCachedUserProfile, type StoredUserProfile } from '../../services/firebaseUser';
 
 const profileItems = [
   { icon: '▣', label: 'My Portfolio' },
@@ -34,8 +37,6 @@ const verificationItems = [
   },
 ];
 
-const mySkills = ['Delivery', 'Driving', 'Cooking', 'Cleaning', 'Plumbing', 'Electrical'];
-
 type ProfileScreenProps = {
   onEditProfile: () => void;
   onLanguage: () => void;
@@ -47,6 +48,22 @@ type ProfileScreenProps = {
 
 function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onWallet, onLogout }: ProfileScreenProps) {
   const { colors } = useAppTheme();
+  const { showAlert } = useCustomAlert();
+  const [profile, setProfile] = useState<StoredUserProfile | null>(null);
+
+  useEffect(() => {
+    getCachedUserProfile().then(setProfile).catch(() => {});
+  }, []);
+
+  const fullName = profile?.fullName?.trim() || 'Your Profile';
+  const initials = fullName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(name => name[0])
+    .join('')
+    .toUpperCase();
+  const skills = profile?.skills ?? [];
 
   return (
     <ScrollView
@@ -56,10 +73,10 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onW
     >
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarInitials}>MJ</Text>
+          <Text style={styles.avatarInitials}>{initials}</Text>
         </View>
         <View style={styles.profileDetails}>
-          <Text style={[styles.name, { color: colors.text }]}>Mehul Joshi</Text>
+          <Text style={[styles.name, { color: colors.text }]}>{fullName}</Text>
           <View style={styles.ratingRow}>
             <Text style={styles.star}>★</Text>
             <Text style={[styles.ratingText, { color: colors.textMuted }]}>4.5 (11 Reviews)</Text>
@@ -90,11 +107,12 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onW
       <View style={styles.skillsSection}>
         <Text style={[styles.skillsHeading, { color: colors.text }]}>My Skills</Text>
         <View style={styles.skillList}>
-          {mySkills.map(skill => (
+          {skills.map(skill => (
             <View key={skill} style={[styles.skillChip, { backgroundColor: '#F0E8FF' }]}>
               <Text style={[styles.skillChipText, { color: colors.primary }]}>{skill}</Text>
             </View>
           ))}
+          {skills.length === 0 ? <Text style={[styles.emptySkillsText, { color: colors.textMuted }]}>No skills added yet.</Text> : null}
         </View>
       </View>
 
@@ -114,7 +132,7 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyPortfolio, onW
                 ? onLanguage
                 : item.label === 'Log Out'
                 ? () => {
-                    Alert.alert(
+                    showAlert(
                       'Log Out',
                       'Are you sure you want to log out?',
                       [
@@ -143,6 +161,7 @@ const styles = StyleSheet.create({
   avatarInitials: { color: '#665C78', fontSize: 15, fontWeight: '700' },
   editButton: { alignItems: 'center', borderRadius: 20, borderWidth: 1.5, marginTop: 10, paddingHorizontal: 18, paddingVertical: 8 },
   editText: { fontSize: 11, fontWeight: '700' },
+  emptySkillsText: { fontSize: 11, marginTop: 2 },
   menu: { paddingHorizontal: 18, paddingTop: 19 },
   menuIcon: { fontSize: 16, fontWeight: '700', textAlign: 'center', width: 26 },
   menuItem: { alignItems: 'center', borderBottomColor: '#E9E2EE', borderBottomWidth: 1, flexDirection: 'row', height: 48, paddingHorizontal: 6 },

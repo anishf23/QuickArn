@@ -15,23 +15,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../navigation/AppNavigator';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { updateCurrentUser } from '../../services/firebaseUser';
+import { reverseGeocode } from '../../services/reverseGeocode';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
+import { hp } from '../../utils/responsive';
 
 type LocationPhase = 'intro' | 'fetching' | 'success' | 'error';
-
-type ReverseGeocodeResponse = {
-  address?: {
-    city?: string;
-    city_district?: string;
-    county?: string;
-    town?: string;
-    village?: string;
-    suburb?: string;
-    state?: string;
-    state_district?: string;
-  };
-  display_name?: string;
-};
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LocationAccess'>;
 
@@ -64,8 +52,9 @@ const getPosition = (highAccuracy: boolean) =>
     );
   });
 
-function LocationAccessScreen({ navigation }: Props) {
+function LocationAccessScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
+  const shouldSaveLocation = route.params?.saveLocation === true;
   const pulse = useRef(new Animated.Value(0)).current;
   const [phase, setPhase] = useState<LocationPhase>('fetching');
   const [locationName, setLocationName] = useState('');
@@ -105,37 +94,10 @@ function LocationAccessScreen({ navigation }: Props) {
       let state = '';
 
       try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-          {
-            headers: {
-              Accept: 'application/json',
-              'Accept-Language': 'en',
-              // Nominatim rejects anonymous mobile requests. Identify the app as required by its usage policy.
-              'User-Agent': 'QuickArn/1.0 (Android location lookup)',
-            },
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error('Address lookup failed.');
-        }
-
-        const result = (await response.json()) as ReverseGeocodeResponse;
-        locality =
-          result.address?.city ||
-          result.address?.state_district ||
-          result.address?.town ||
-          result.address?.village ||
-          result.address?.city_district ||
-          result.address?.county ||
-          result.address?.suburb ||
-          'Current location';
-
-        address =
-          result.display_name ||
-          address;
-        state = result.address?.state || '';
+        const resolvedLocation = await reverseGeocode(latitude, longitude);
+        locality = resolvedLocation.city;
+        address = resolvedLocation.address;
+        state = resolvedLocation.state;
       } catch {
         // GPS coordinates are still useful when the reverse-geocoding service is unavailable.
       }
@@ -144,18 +106,20 @@ function LocationAccessScreen({ navigation }: Props) {
       setLocationLabel(address);
       setPhase('success');
 
-      await updateCurrentUser({
-        address,
-        city: locality,
-        state,
-        latitude,
-        longitude,
-        isProfileCompleted: true,
-      });
+      if (shouldSaveLocation) {
+        await updateCurrentUser({
+          address,
+          city: locality,
+          state,
+          latitude,
+          longitude,
+          isProfileCompleted: true,
+        });
+      }
 
       navigation.replace('Main', { address });
     },
-    [navigation],
+    [navigation, shouldSaveLocation],
   );
 
   const fetchLocation = useCallback(async () => {
@@ -303,7 +267,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 30,
   },
-  content: { flex: 1, paddingHorizontal: 28 },
+  content: { flex: 1, paddingHorizontal: 28 ,
+  },
   description: {
     fontSize: 14,
     lineHeight: 20,
@@ -341,9 +306,9 @@ const styles = StyleSheet.create({
   pulseRing: {
     borderRadius: 84,
     borderWidth: 2,
-    height: 168,
+    height: hp(20),
     position: 'absolute',
-    width: 168,
+    width: hp(20),
   },
   retryButton: {
     alignSelf: 'center',

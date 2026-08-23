@@ -10,7 +10,7 @@ import SplashScreen from '../screen/SplashScreen';
 
 export type RootStackParamList = {
   Login: undefined;
-  LocationAccess: undefined;
+  LocationAccess: { saveLocation?: boolean } | undefined;
   LanguageSelection: { mode: 'onboarding' | 'profile' };
   Main: { address: string };
   OTP: { phoneNumber: string };

@@ -23,7 +23,11 @@ function SplashScreen({ navigation }: Props) {
       }
 
       hasNavigated = true;
-      navigation.replace(isSignedIn ? 'LocationAccess' : 'Login');
+      if (isSignedIn) {
+        navigation.replace('LocationAccess', { saveLocation: false });
+      } else {
+        navigation.replace('Login');
+      }
     };
 
     const unsubscribe = subscribeToAuthState(user => {

@@ -1,27 +1,100 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuth, signInWithPhoneNumber, type ConfirmationResult, type User } from '@react-native-firebase/auth';
-import { onAuthStateChanged, signOut } from '@react-native-firebase/auth';
 import { doc, getDoc, getFirestore, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
 import { getMessaging, getToken, onTokenRefresh, registerDeviceForRemoteMessages } from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
 
 import type { AppLanguage } from '../localization/AppLocalization';
+import { ensureInternetConnection } from './internetCheck';
 
 let phoneConfirmation: ConfirmationResult | null = null;
 let unsubscribeTokenRefresh: (() => void) | null = null;
+const USER_PROFILE_STORAGE_KEY = '@quickarn/user-profile';
 
 const userDocument = (uid: string) => doc(getFirestore(), 'users', uid);
 
-type StoredUserProfile = {
+export type StoredUserProfile = {
   address?: string;
+  about?: string;
+  city?: string;
+  email?: string;
+  fullName?: string;
+  gender?: string;
+  fcmToken?: string;
+  isActive?: boolean;
+  isOnline?: boolean;
+  isProfileCompleted?: boolean;
+  isVerified?: boolean;
+  language?: AppLanguage;
+  latitude?: number | null;
+  longitude?: number | null;
+  mobileNumber?: string;
+  profileImage?: string;
+  role?: string;
+  skills?: string[];
+  state?: string;
+  uid: string;
 };
 
+export async function getCachedUserProfile() {
+  try {
+    const storedProfile = await AsyncStorage.getItem(USER_PROFILE_STORAGE_KEY);
+    return storedProfile ? (JSON.parse(storedProfile) as StoredUserProfile) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function cacheUserProfile(profile: StoredUserProfile) {
+  await AsyncStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+}
+
+function createDefaultUserProfile(
+  uid: string,
+  mobileNumber: string,
+  language: AppLanguage,
+  fcmToken = '',
+): StoredUserProfile {
+  const digits = mobileNumber.replace(/\D/g, '');
+  const normalizedMobileNumber = digits.startsWith('91') && digits.length > 10
+    ? `+${digits}`
+    : digits
+    ? `+91${digits}`
+    : '';
+
+  return {
+    uid,
+    mobileNumber: normalizedMobileNumber,
+    fullName: '',
+    profileImage: '',
+    role: 'customer',
+    language,
+    gender: '',
+    city: '',
+    state: '',
+    address: '',
+    latitude: null,
+    longitude: null,
+    isOnline: false,
+    isActive: true,
+    isProfileCompleted: false,
+    isVerified: false,
+    fcmToken,
+    email: '',
+    about: '',
+    skills: [],
+  };
+}
+
 export async function requestPhoneOtp(mobileNumber: string) {
+  await ensureInternetConnection();
   const normalizedNumber = mobileNumber.replace(/\D/g, '');
   phoneConfirmation = await signInWithPhoneNumber(getAuth(), `+91${normalizedNumber}`);
 }
 
 export async function confirmPhoneOtp(code: string) {
+  await ensureInternetConnection();
+
   if (!phoneConfirmation) {
     throw new Error('Your verification session expired. Please request a new OTP.');
   }
@@ -32,7 +105,21 @@ export async function confirmPhoneOtp(code: string) {
 }
 
 export function subscribeToAuthState(callback: (user: User | null) => void) {
-  return onAuthStateChanged(getAuth(), callback);
+  try {
+    const auth = getAuth();
+
+    if (typeof auth.onAuthStateChanged !== 'function') {
+      callback(auth.currentUser ?? null);
+      return () => {};
+    }
+
+    return auth.onAuthStateChanged(callback);
+  } catch {
+    // Firebase native modules may be unavailable in a stale development build.
+    // Do not crash Splash; it will safely continue to Login.
+    callback(null);
+    return () => {};
+  }
 }
 
 export async function signOutCurrentUser() {
@@ -41,13 +128,15 @@ export async function signOutCurrentUser() {
   phoneConfirmation = null;
 
   try {
-    await signOut(getAuth());
+    await getAuth().signOut();
   } finally {
     await AsyncStorage.clear();
   }
 }
 
 export async function getFcmToken() {
+  await ensureInternetConnection();
+
   if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
     await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
   }
@@ -62,73 +151,78 @@ export async function createOrUpdateUserDocument(
   mobileNumber: string,
   language: AppLanguage,
 ) {
+  await ensureInternetConnection();
   const userReference = userDocument(user.uid);
-  const snapshot = await getDoc(userReference);
   const fcmToken = await getFcmToken().catch(() => '');
-  const now = serverTimestamp();
+  const profile = createDefaultUserProfile(user.uid, mobileNumber, language, fcmToken);
 
-  if (!snapshot.exists) {
-    await setDoc(userReference, {
-      uid: user.uid,
-      mobileNumber: `+91${mobileNumber.replace(/\D/g, '')}`,
-      fullName: '',
-      profileImage: '',
-      role: 'customer',
-      language,
-      gender: '',
-      city: '',
-      state: '',
-      address: '',
-      latitude: null,
-      longitude: null,
-      isOnline: false,
-      isActive: true,
-      isProfileCompleted: false,
-      isVerified: false,
-      fcmToken,
-      createdAt: now,
-      updatedAt: now,
-    });
-  } else {
-    await setDoc(userReference, {
-      mobileNumber: `+91${mobileNumber.replace(/\D/g, '')}`,
-      language,
-      fcmToken,
-      updatedAt: now,
-    }, { merge: true });
-  }
+  // OTPScreen calls this only after confirming that no profile exists. A direct
+  // write avoids a second Firestore read and creates `users/{firebaseUid}`.
+  await setDoc(userReference, {
+    ...profile,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  await cacheUserProfile(profile);
 
   startFcmTokenSync(user.uid);
 }
 
 export async function getExistingUserProfile(uid: string) {
+  await ensureInternetConnection();
   const snapshot = await getDoc(userDocument(uid));
 
-  if (!snapshot.exists) {
+  if (!snapshot.exists()) {
     return null;
   }
 
-  return snapshot.data() as StoredUserProfile;
+  const profile = { ...(snapshot.data() as StoredUserProfile), uid };
+  await cacheUserProfile(profile);
+  return profile;
 }
 
 export async function updateCurrentUser(fields: Record<string, unknown>) {
+  await ensureInternetConnection();
   const currentUser = getAuth().currentUser;
   if (!currentUser) {
-    return;
+    throw new Error('Your login session has expired. Please sign in again.');
   }
 
-  await setDoc(userDocument(currentUser.uid), {
+  const cachedProfile = await getCachedUserProfile();
+  const userReference = userDocument(currentUser.uid);
+  const snapshot = await getDoc(userReference);
+  const documentExists = snapshot.exists();
+  const profile = {
+    ...(documentExists ? (snapshot.data() as StoredUserProfile) : createDefaultUserProfile(
+      currentUser.uid,
+      currentUser.phoneNumber ?? cachedProfile?.mobileNumber ?? '',
+      cachedProfile?.language ?? 'en',
+      cachedProfile?.fcmToken ?? '',
+    )),
     ...fields,
+    uid: currentUser.uid,
+  } as StoredUserProfile;
+
+  await setDoc(userReference, {
+    ...profile,
+    ...(documentExists ? {} : { createdAt: serverTimestamp() }),
     updatedAt: serverTimestamp(),
-  }, { merge: true });
+  }, { merge: documentExists });
+
+  await cacheUserProfile({
+    ...cachedProfile,
+    ...profile,
+  });
 }
 
 export function startFcmTokenSync(uid: string) {
   unsubscribeTokenRefresh?.();
   unsubscribeTokenRefresh = onTokenRefresh(getMessaging(), token => {
-    setDoc(userDocument(uid), {
-      fcmToken: token,
-      updatedAt: serverTimestamp(),
-    }, { merge: true }).catch(() => {});
+    ensureInternetConnection()
+      .then(() => setDoc(userDocument(uid), {
+        fcmToken: token,
+        updatedAt: serverTimestamp(),
+      }, { merge: true }))
+      .catch(() => {});
   });
 }

@@ -33,7 +33,7 @@ function LanguageSelectionScreen({ navigation, route }: Props) {
       navigation.goBack();
       return;
     }
-    navigation.navigate('LocationAccess');
+    navigation.navigate('LocationAccess', { saveLocation: true });
   };
 
   return (

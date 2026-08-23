@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   KeyboardAvoidingView,
-  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
+import { useCustomAlert } from '../../components/CustomAlert';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { updateCurrentUser } from '../../services/firebaseUser';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
@@ -23,6 +23,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ProfileSetup'>;
 
 function ProfileSetupScreen({ navigation }: Props) {
   const { colors, isDark } = useAppTheme();
+  const { showAlert } = useCustomAlert();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState<(typeof genders)[number] | null>(null);
@@ -40,7 +41,7 @@ function ProfileSetupScreen({ navigation }: Props) {
       await updateCurrentUser({ fullName: name.trim(), gender, email: email.trim() });
       navigation.navigate('LanguageSelection', { mode: 'onboarding' });
     } catch (error) {
-      Alert.alert('Unable to save profile', error instanceof Error ? error.message : 'Please try again.');
+      showAlert('Unable to save profile', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setIsSaving(false);
     }

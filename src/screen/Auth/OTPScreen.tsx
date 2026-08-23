@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
-  Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
+import { useCustomAlert } from '../../components/CustomAlert';
 import { LocalizedText as Text, useLocalization } from '../../localization/AppLocalization';
 import {
   confirmPhoneOtp,
@@ -27,6 +28,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OTP'>;
 
 function OTPScreen({ navigation, route }: Props) {
   const { colors, isDark } = useAppTheme();
+  const { showAlert } = useCustomAlert();
   const { language } = useLocalization();
   const [otp, setOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -34,7 +36,12 @@ function OTPScreen({ navigation, route }: Props) {
   const isComplete = otp.length === 6;
 
   const updateOtp = (value: string) => {
-    setOtp(value.replace(/\D/g, '').slice(0, 6));
+    const nextOtp = value.replace(/\D/g, '').slice(0, 6);
+    setOtp(nextOtp);
+
+    if (nextOtp.length === 6) {
+      Keyboard.dismiss();
+    }
   };
 
   const verifyOtp = async () => {
@@ -48,14 +55,14 @@ function OTPScreen({ navigation, route }: Props) {
       const existingProfile = await getExistingUserProfile(user.uid);
 
       if (existingProfile) {
-        navigation.replace('LocationAccess');
+        navigation.replace('LocationAccess', { saveLocation: false });
         return;
       }
 
       await createOrUpdateUserDocument(user, route.params.phoneNumber, language);
       navigation.replace('ProfileSetup');
     } catch (error) {
-      Alert.alert('Verification failed', error instanceof Error ? error.message : 'The OTP is invalid. Please try again.');
+      showAlert('Verification failed', error instanceof Error ? error.message : 'The OTP is invalid. Please try again.');
     } finally {
       setIsVerifying(false);
     }
@@ -70,9 +77,9 @@ function OTPScreen({ navigation, route }: Props) {
     try {
       await requestPhoneOtp(route.params.phoneNumber);
       setOtp('');
-      Alert.alert('Code resent', 'A new verification code has been sent.');
+      showAlert('Code resent', 'A new verification code has been sent.');
     } catch (error) {
-      Alert.alert('Unable to resend OTP', error instanceof Error ? error.message : 'Please try again.');
+      showAlert('Unable to resend OTP', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setIsResending(false);
     }

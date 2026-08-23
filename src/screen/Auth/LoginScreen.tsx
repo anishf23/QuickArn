@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
-  Alert,
+  Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../navigation/AppNavigator';
+import { useCustomAlert } from '../../components/CustomAlert';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { requestPhoneOtp } from '../../services/firebaseUser';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
@@ -33,6 +35,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
 function LoginScreen({ navigation }: Props) {
   const { colors, isDark } = useAppTheme();
+  const { showAlert } = useCustomAlert();
   const { height } = useWindowDimensions();
   const [mobileNumber, setMobileNumber] = useState('');
   const [hasReferral, setHasReferral] = useState(false);
@@ -40,8 +43,21 @@ function LoginScreen({ navigation }: Props) {
   const canContinue = mobileNumber.replace(/\D/g, '').length === 10;
   const isCompact = height < 720;
 
-  const showLegalNotice = (documentName: string) => {
-    Alert.alert(documentName, `${documentName} will be available soon.`);
+  const updateMobileNumber = (value: string) => {
+    const nextNumber = value.replace(/\D/g, '').slice(0, 10);
+    setMobileNumber(nextNumber);
+
+    if (nextNumber.length === 10) {
+      Keyboard.dismiss();
+    }
+  };
+
+  const openLegalDocument = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      showAlert('Unable to open link', 'Please try again later.');
+    }
   };
 
   const sendOtp = async () => {
@@ -54,7 +70,7 @@ function LoginScreen({ navigation }: Props) {
       await requestPhoneOtp(mobileNumber);
       navigation.navigate('OTP', { phoneNumber: mobileNumber });
     } catch (error) {
-      Alert.alert('Unable to send OTP', error instanceof Error ? error.message : 'Please check your number and try again.');
+      showAlert('Unable to send OTP', error instanceof Error ? error.message : 'Please check your number and try again.');
     } finally {
       setIsSendingOtp(false);
     }
@@ -119,7 +135,7 @@ function LoginScreen({ navigation }: Props) {
               <TextInput
                 keyboardType="phone-pad"
                 maxLength={10}
-                onChangeText={setMobileNumber}
+                onChangeText={updateMobileNumber}
                 placeholder="Enter mobile number"
                 placeholderTextColor={colors.textMuted}
                 style={[styles.input, { color: colors.text }]}
@@ -170,7 +186,7 @@ function LoginScreen({ navigation }: Props) {
               By continuing, you agree to our{' '}
               <Text
                 accessibilityRole="link"
-                onPress={() => showLegalNotice('Terms of Service')}
+                onPress={() => openLegalDocument('https://example.com/quickarn/terms-of-service')}
                 style={[styles.legalLink, { color: colors.text }]}
               >
                 Terms of Service
@@ -178,7 +194,7 @@ function LoginScreen({ navigation }: Props) {
               &{' '}
               <Text
                 accessibilityRole="link"
-                onPress={() => showLegalNotice('Privacy Policy')}
+                onPress={() => openLegalDocument('https://example.com/quickarn/privacy-policy')}
                 style={[styles.legalLink, { color: colors.text }]}
               >
                 Privacy Policy
@@ -214,7 +230,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   continueText: { color: '#FFFFFF', fontSize: rf(17), fontWeight: '700' },
-  countryCode: { fontSize: 17, fontWeight: '700', marginRight: 16 },
+  countryCode: { fontSize: rf(17), fontWeight: '700', marginRight: 16 },
   flex: { flex: 1 },
   heading: { fontSize: rf(28), fontWeight: '800', textAlign: 'center' },
   hero: {

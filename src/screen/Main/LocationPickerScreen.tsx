@@ -5,6 +5,7 @@ import Geolocation, { PositionError } from 'react-native-geolocation-service';
 
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
+import { nominatimHeaders, reverseGeocode } from '../../services/reverseGeocode';
 import PostJobHeader from './components/PostJobHeader';
 import { rf } from '../../utils/responsive';
 
@@ -32,16 +33,6 @@ type NominatimResult = {
   lat: string;
   lon: string;
   place_id: number;
-};
-
-type NominatimReverseResult = {
-  display_name?: string;
-};
-
-const nominatimHeaders = {
-  Accept: 'application/json',
-  'Accept-Language': 'en',
-  'User-Agent': 'QuickArn/1.0',
 };
 
 const SAVED_ADDRESSES_STORAGE_KEY = '@quickarn/saved-addresses';
@@ -137,13 +128,8 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
 
   const reverseGeocodeAndSelect = async (latitude: number, longitude: number) => {
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
-        { headers: nominatimHeaders },
-      );
-      const result = (await response.json()) as NominatimReverseResult;
-      const address = result.display_name || 'Current location';
-      selectAddress(address);
+      const resolvedLocation = await reverseGeocode(latitude, longitude);
+      selectAddress(resolvedLocation.address);
     } catch {
       selectAddress('Current location');
     } finally {

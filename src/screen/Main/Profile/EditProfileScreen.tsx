@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { useAppTheme } from '../../../theme/AppTheme';
 import { LocalizedText as Text } from '../../../localization/AppLocalization';
-import { updateCurrentUser } from '../../../services/firebaseUser';
+import { getCachedUserProfile, updateCurrentUser } from '../../../services/firebaseUser';
 import PostJobHeader from '../components/PostJobHeader';
 
 
@@ -15,13 +15,38 @@ const genders = ['Male', 'Female', 'Other'] as const;
 
 function EditProfileScreen({ onBack }: EditProfileScreenProps) {
   const { colors } = useAppTheme();
-  const [name, setName] = useState('Mehul Joshi');
-  const [phone, setPhone] = useState('+91 98765 43210');
-  const [email, setEmail] = useState('mehul.joshi@email.com');
-  const [about, setAbout] = useState('Reliable service professional, ready to help with local jobs.');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [about, setAbout] = useState('');
   const [gender, setGender] = useState<(typeof genders)[number]>('Male');
-  const [skills, setSkills] = useState(['Delivery', 'Driving', 'Cooking', 'Plumbing']);
+  const [skills, setSkills] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    getCachedUserProfile().then(profile => {
+      if (!profile) {
+        return;
+      }
+
+      setName(profile.fullName ?? '');
+      setPhone(profile.mobileNumber ?? '');
+      setEmail(profile.email ?? '');
+      setAbout(profile.about ?? '');
+      setSkills(profile.skills ?? []);
+      if (profile.gender === 'Male' || profile.gender === 'Female' || profile.gender === 'Other') {
+        setGender(profile.gender);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const initials = name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0])
+    .join('')
+    .toUpperCase() || 'U';
 
   const saveProfile = async () => {
     if (isSaving) {
@@ -49,7 +74,7 @@ function EditProfileScreen({ onBack }: EditProfileScreenProps) {
       <PostJobHeader onBack={onBack} title="Edit Profile" />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Pressable accessibilityRole="button" style={[styles.avatar, { backgroundColor: '#E5E0FF' }]}>
-          <Text style={styles.avatarText}>MJ</Text>
+          <Text style={styles.avatarText}>{initials}</Text>
           <View style={[styles.cameraBadge, { backgroundColor: colors.primary }]}><Text style={styles.cameraText}>⌑</Text></View>
         </Pressable>
         <Text style={[styles.photoHint, { color: colors.textMuted }]}>Tap to change profile photo</Text>
