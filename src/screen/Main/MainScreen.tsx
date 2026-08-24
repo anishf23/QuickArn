@@ -24,8 +24,8 @@ import PostJobScreen from './PostJobScreen';
 import ProfileScreen from './ProfileScreen';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text, useLocalization } from '../../localization/AppLocalization';
-import { signOutCurrentUser, updateCurrentUser } from '../../services/firebaseUser';
-import type { PostedJob } from '../../services/jobs';
+import { getCachedUserProfile, signOutCurrentUser, updateCurrentUser } from '../../services/firebaseUser';
+import { closeJob, type PostedJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
@@ -57,14 +57,30 @@ function MainScreen({ navigation, route }: Props) {
   const [isViewingWallet, setIsViewingWallet] = useState(false);
   const [isVerifyingProfile, setIsVerifyingProfile] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isEditingJob, setIsEditingJob] = useState(false);
   const [isViewingPersonalProfile, setIsViewingPersonalProfile] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [selectedJob, setSelectedJob] = useState<PostedJob | null>(null);
+  const [isViewingOwnJob, setIsViewingOwnJob] = useState(false);
+  const [locationCoordinates, setLocationCoordinates] = useState<{ latitude: number | null; longitude: number | null }>({ latitude: null, longitude: null });
+  const [userRole, setUserRole] = useState('');
+
+  useEffect(() => {
+    getCachedUserProfile().then(profile => {
+      setUserRole(profile?.role ?? '');
+      if (typeof profile?.latitude === 'number' && typeof profile.longitude === 'number') {
+        setLocationCoordinates({ latitude: profile.latitude, longitude: profile.longitude });
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (isViewingPersonalProfile) {
         setIsViewingPersonalProfile(false);
+      } else if (isEditingJob) {
+        setIsEditingJob(false);
+        setIsViewingJobDetails(true);
       } else if (isEditingProfile) {
         setIsEditingProfile(false);
       } else if (isVerifyingProfile) {
@@ -85,10 +101,10 @@ function MainScreen({ navigation, route }: Props) {
         setIsPlacingBid(false);
       } else if (isViewingJobDetails) {
         setIsViewingJobDetails(false);
-        if (selectedJob) {
+        if (selectedJob && isViewingOwnJob) {
           setIsViewingMyJobs(true);
-          setSelectedJob(null);
         }
+        setSelectedJob(null);
       } else if (isBrowsingJobs) {
         setIsBrowsingJobs(false);
       } else if (isViewingSingleChat) {
@@ -108,6 +124,7 @@ function MainScreen({ navigation, route }: Props) {
     activeTab,
     isBrowsingJobs,
     isEditingProfile,
+    isEditingJob,
     isPlacingBid,
     isSelectingLocation,
     isVerifyingProfile,
@@ -119,6 +136,7 @@ function MainScreen({ navigation, route }: Props) {
     isViewingPersonalProfile,
     isViewingSingleChat,
     isViewingWallet,
+    isViewingOwnJob,
     selectedJob,
   ]);
 
@@ -136,6 +154,20 @@ function MainScreen({ navigation, route }: Props) {
   const content =
     isViewingPersonalProfile ? (
       <PersonalProfileScreen onBack={() => setIsViewingPersonalProfile(false)} />
+    ) : isEditingJob && selectedJob ? (
+      <PostJobScreen
+        editingJob={selectedJob}
+        onBack={() => {
+          setIsEditingJob(false);
+          setIsViewingJobDetails(true);
+        }}
+        onJobSaved={() => {
+          setIsEditingJob(false);
+          setIsViewingJobDetails(false);
+          setSelectedJob(null);
+          setIsViewingMyJobs(true);
+        }}
+      />
     ) : isEditingProfile ? (
       <EditProfileScreen onBack={() => setIsEditingProfile(false)} />
     ) : isVerifyingProfile ? (
@@ -162,7 +194,13 @@ function MainScreen({ navigation, route }: Props) {
         }}
         onSelectLocation={location => {
           setSelectedAddress(location.address);
+          setLocationCoordinates({ latitude: location.latitude, longitude: location.longitude });
           setRecentAddresses(addresses => [location.address, ...addresses.filter(item => item !== location.address)].slice(0, 5));
+          updateCurrentUser({
+            address: location.address,
+            latitude: location.latitude,
+            longitude: location.longitude,
+          }).catch(() => {});
           setIsSelectingLocation(false);
         }}
       />
@@ -175,6 +213,7 @@ function MainScreen({ navigation, route }: Props) {
         onBack={() => setIsViewingMyJobs(false)}
         onOpenJob={job => {
           setSelectedJob(job);
+          setIsViewingOwnJob(true);
           setIsViewingMyJobs(false);
           setIsViewingJobDetails(true);
         }}
@@ -196,23 +235,55 @@ function MainScreen({ navigation, route }: Props) {
     ) : isViewingJobDetails ? (
       <JobDetailsScreen
         job={selectedJob}
+        isOwner={isViewingOwnJob}
         onBack={() => {
           setIsViewingJobDetails(false);
-          if (selectedJob) {
+          if (selectedJob && isViewingOwnJob) {
             setIsViewingMyJobs(true);
-            setSelectedJob(null);
           }
+          setSelectedJob(null);
+        }}
+        onEditJob={() => {
+          if (selectedJob) {
+            setIsViewingJobDetails(false);
+            setIsEditingJob(true);
+          }
+        }}
+        onCloseJob={() => {
+          if (!selectedJob) {
+            return;
+          }
+
+          closeJob(selectedJob.id)
+            .then(() => {
+              setIsViewingJobDetails(false);
+              setSelectedJob(null);
+              setIsViewingOwnJob(false);
+              setIsViewingMyJobs(true);
+            })
+            .catch(() => {});
         }}
         onPlaceBid={() => setIsPlacingBid(true)}
       />
     ) : isBrowsingJobs ? (
-      <BrowseJobsScreen onBack={() => setIsBrowsingJobs(false)} />
+      <BrowseJobsScreen
+        latitude={locationCoordinates.latitude}
+        longitude={locationCoordinates.longitude}
+        onBack={() => setIsBrowsingJobs(false)}
+      />
     ) : activeTab === 'Home' ? (
       <HomeScreen
         address={selectedAddress}
         isOnline={isOnline}
+        latitude={locationCoordinates.latitude}
+        longitude={locationCoordinates.longitude}
+        role={userRole}
         onAvailabilityPress={() => setIsVerifyingProfile(true)}
-        onJobPress={() => setIsViewingJobDetails(true)}
+        onJobPress={job => {
+          setSelectedJob(job);
+          setIsViewingOwnJob(false);
+          setIsViewingJobDetails(true);
+        }}
         onLocationPress={() => setIsSelectingLocation(true)}
         onNotificationPress={() => setIsViewingNotifications(true)}
         onProfilePress={() => setIsViewingPersonalProfile(true)}
@@ -231,8 +302,8 @@ function MainScreen({ navigation, route }: Props) {
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
-      <View style={[styles.content, (activeTab === 'Post' || isViewingSingleChat || isBrowsingJobs || isViewingJobDetails || isPlacingBid || isViewingMyBids || isViewingMyJobs || isViewingMyPortfolio || isSelectingLocation || isViewingNotifications || isViewingWallet || isVerifyingProfile || isEditingProfile || isViewingPersonalProfile) && styles.postContent]}>{content}</View>
-      {activeTab !== 'Post' && !isViewingSingleChat && !isBrowsingJobs && !isViewingJobDetails && !isPlacingBid && !isViewingMyBids && !isViewingMyJobs && !isViewingMyPortfolio && !isSelectingLocation && !isViewingNotifications && !isViewingWallet && !isVerifyingProfile && !isEditingProfile && !isViewingPersonalProfile && <View
+      <View style={[styles.content, (activeTab === 'Post' || isViewingSingleChat || isBrowsingJobs || isViewingJobDetails || isPlacingBid || isViewingMyBids || isViewingMyJobs || isViewingMyPortfolio || isSelectingLocation || isViewingNotifications || isViewingWallet || isVerifyingProfile || isEditingProfile || isEditingJob || isViewingPersonalProfile) && styles.postContent]}>{content}</View>
+      {activeTab !== 'Post' && !isViewingSingleChat && !isBrowsingJobs && !isViewingJobDetails && !isPlacingBid && !isViewingMyBids && !isViewingMyJobs && !isViewingMyPortfolio && !isSelectingLocation && !isViewingNotifications && !isViewingWallet && !isVerifyingProfile && !isEditingProfile && !isEditingJob && !isViewingPersonalProfile && <View
         style={[
           styles.tabBar,
           {
@@ -261,6 +332,7 @@ function MainScreen({ navigation, route }: Props) {
                 setIsViewingWallet(false);
                 setIsVerifyingProfile(false);
                 setIsEditingProfile(false);
+                setIsEditingJob(false);
                 setIsViewingPersonalProfile(false);
               }}
               style={styles.tabButton}

@@ -16,17 +16,31 @@ const formatJobDate = (date: Date) => date.toLocaleDateString('en-IN', {
   day: '2-digit', month: 'short', year: 'numeric',
 });
 
+const getDisplayStatus = (job: PostedJob, currentTime: number) => {
+  if (job.status.toLowerCase() === 'closed') {
+    return 'Closed';
+  }
+
+  return job.closeDateTime.getTime() < currentTime ? 'Overdue' : job.status;
+};
+
 function MyJobsScreen({ onBack, onOpenJob }: MyJobsScreenProps) {
   const { colors } = useAppTheme();
   const [jobs, setJobs] = useState<PostedJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   useEffect(() => {
     getMyJobs()
       .then(setJobs)
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Unable to load your jobs.'))
       .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(Date.now()), 60_000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -40,13 +54,18 @@ function MyJobsScreen({ onBack, onOpenJob }: MyJobsScreenProps) {
         <View style={styles.centerState}><Text style={[styles.emptyTitle, { color: colors.text }]}>No jobs posted yet</Text><Text style={[styles.stateText, { color: colors.textMuted }]}>Jobs you publish will appear here.</Text></View>
       ) : (
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {jobs.map(job => (
+          {jobs.map(job => {
+            const status = getDisplayStatus(job, currentTime);
+            const isClosed = status.toLowerCase() === 'closed';
+            const isOverdue = status.toLowerCase() === 'overdue';
+
+            return (
             <Pressable key={job.id} accessibilityRole="button" onPress={() => onOpenJob(job)} style={[styles.jobCard, { backgroundColor: colors.card }]}>
               <View style={[styles.categoryIcon, { backgroundColor: '#F0E8FF' }]}><Text style={[styles.categorySymbol, { color: colors.primary }]}>▰</Text></View>
               <View style={styles.jobCopy}>
                 <View style={styles.titleRow}>
                   <Text numberOfLines={2} style={[styles.jobTitle, { color: colors.text }]}>{job.title}</Text>
-                  <View style={styles.statusBadge}><Text style={styles.statusText}>{job.status}</Text></View>
+                  <View style={[styles.statusBadge, isClosed && styles.closedStatusBadge, isOverdue && styles.overdueStatusBadge]}><Text style={[styles.statusText, isClosed && styles.closedStatusText, isOverdue && styles.overdueStatusText]}>{status}</Text></View>
                 </View>
                 <Text numberOfLines={1} style={[styles.jobArea, { color: colors.textMuted }]}>⌖ {job.pickupDetails.address || 'Pickup location'}</Text>
                 <View style={styles.metaRow}>
@@ -55,7 +74,8 @@ function MyJobsScreen({ onBack, onOpenJob }: MyJobsScreenProps) {
                 </View>
               </View>
             </Pressable>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
     </View>
@@ -66,6 +86,8 @@ const styles = StyleSheet.create({
   budget: { fontSize: rf(14), fontWeight: '800' },
   categoryIcon: { alignItems: 'center', borderRadius: 22, height: 44, justifyContent: 'center', width: 44 },
   categorySymbol: { fontSize: rf(18), fontWeight: '800' },
+  closedStatusBadge: { backgroundColor: '#FEE2E2' },
+  closedStatusText: { color: '#DC2626' },
   centerState: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingHorizontal: 30 },
   date: { fontSize: rf(10) },
   emptyTitle: { fontSize: rf(16), fontWeight: '800', marginBottom: 7 },
@@ -75,6 +97,8 @@ const styles = StyleSheet.create({
   jobTitle: { flex: 1, fontSize: rf(14), fontWeight: '800', lineHeight: rf(18), paddingRight: 7 },
   list: { padding: 12 },
   metaRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  overdueStatusBadge: { backgroundColor: '#FFEDD5' },
+  overdueStatusText: { color: '#C2410C' },
   screen: { flex: 1 },
   stateText: { fontSize: rf(12), lineHeight: rf(17), marginTop: 10, textAlign: 'center' },
   statusBadge: { backgroundColor: '#DCFCE7', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 },

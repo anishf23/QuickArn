@@ -6,13 +6,15 @@ import { collection, getDocs, getFirestore } from '@react-native-firebase/firest
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { useCustomAlert } from '../../components/CustomAlert';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
-import { createJob } from '../../services/jobs';
+import { createJob, type PostedJob, updateJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
 import PostJobHeader from './components/PostJobHeader';
 import PostLocationDetailsScreen, { type LocationDetails, type PostLocationMode } from './PostLocationDetailsScreen';
 
 type PostJobScreenProps = {
+  editingJob?: PostedJob | null;
   onBack: () => void;
+  onJobSaved?: () => void;
 };
 
 type DatePickerTarget = 'job' | 'close' | null;
@@ -61,29 +63,28 @@ const formatDateTime = (value: Date) => {
   return `${day}/${month}/${year}, ${hours}:${minutes}`;
 };
 
-function PostJobScreen({ onBack }: PostJobScreenProps) {
+function PostJobScreen({ editingJob, onBack, onJobSaved }: PostJobScreenProps) {
   const { colors } = useAppTheme();
   const { showAlert } = useCustomAlert();
+  const isEditingJob = Boolean(editingJob);
   const [currentStep, setCurrentStep] = useState(1);
   const [categories, setCategories] = useState<JobCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState('');
-  const [jobTitle, setJobTitle] = useState('');
-  const [description, setDescription] = useState(
-    '',
-  );
-  const [budget, setBudget] = useState('');
-  const [priority, setPriority] = useState<(typeof priorities)[number]['label']>('Medium');
-  const [jobDateTime, setJobDateTime] = useState<Date | null>(null);
-  const [closeDateTime, setCloseDateTime] = useState<Date | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState(editingJob?.category ?? '');
+  const [selectedCategoryId, setSelectedCategoryId] = useState(editingJob?.categoryId ?? '');
+  const [jobTitle, setJobTitle] = useState(editingJob?.title ?? '');
+  const [description, setDescription] = useState(editingJob?.description ?? '');
+  const [budget, setBudget] = useState(editingJob ? String(editingJob.budget) : '');
+  const [priority, setPriority] = useState<(typeof priorities)[number]['label']>(editingJob?.priority ?? 'Medium');
+  const [jobDateTime, setJobDateTime] = useState<Date | null>(editingJob?.jobDateTime ?? null);
+  const [closeDateTime, setCloseDateTime] = useState<Date | null>(editingJob?.closeDateTime ?? null);
   const [datePickerTarget, setDatePickerTarget] = useState<DatePickerTarget>(null);
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date');
   const [isPublished, setIsPublished] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishedJobId, setPublishedJobId] = useState('');
-  const [pickupDetails, setPickupDetails] = useState<LocationDetails>(emptyLocationDetails);
-  const [dropDetails, setDropDetails] = useState<LocationDetails>(emptyLocationDetails);
+  const [pickupDetails, setPickupDetails] = useState<LocationDetails>(editingJob?.pickupDetails ?? emptyLocationDetails);
+  const [dropDetails, setDropDetails] = useState<LocationDetails>(editingJob?.dropDetails ?? emptyLocationDetails);
   const [editingLocation, setEditingLocation] = useState<PostLocationMode | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const pickupLocation = displayLocation(pickupDetails);
@@ -121,7 +122,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
           : '');
         setSelectedCategoryId(current => nextCategories.some(category => category.id === current)
           ? current
-          : '');
+          : nextCategories.find(category => category.name === editingJob?.category)?.id ?? '');
       } catch {
         if (isMounted) {
           setCategories([]);
@@ -138,7 +139,7 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [editingJob]);
 
   const goBack = useCallback(() => {
     if (currentStep > 1) {
@@ -219,9 +220,9 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
 
       setIsPublishing(true);
       try {
-        const jobId = await createJob({
+        const jobInput = {
           budget: Number(budget),
-          budgetType: isDeliveryCategory ? 'fixed' : 'hourly',
+          budgetType: isDeliveryCategory ? 'fixed' as const : 'hourly' as const,
           category: selectedCategory,
           categoryId: selectedCategoryId,
           closeDateTime,
@@ -231,12 +232,15 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
           pickupDetails,
           priority,
           title: jobTitle,
-        });
+        };
+        const jobId = isEditingJob && editingJob
+          ? await updateJob(editingJob.id, jobInput)
+          : await createJob(jobInput);
         setPublishedJobId(jobId);
         setIsPublished(true);
       } catch (error) {
         showAlert(
-          'Unable to publish job',
+          isEditingJob ? 'Unable to update job' : 'Unable to publish job',
           error instanceof Error ? error.message : 'Please try again.',
         );
       } finally {
@@ -571,16 +575,16 @@ function PostJobScreen({ onBack }: PostJobScreenProps) {
                 <Text style={[styles.successCheck, { color: colors.primary }]}>✓</Text>
               </View>
             </View>
-            <Text style={[styles.successTitle, { color: colors.text }]}>Job Posted</Text>
-            <Text style={[styles.successMessage, { color: colors.textMuted }]}>Your job has been posted successfully!</Text>
+            <Text style={[styles.successTitle, { color: colors.text }]}>{isEditingJob ? 'Job Updated' : 'Job Posted'}</Text>
+            <Text style={[styles.successMessage, { color: colors.textMuted }]}>{isEditingJob ? 'Your job changes have been saved successfully!' : 'Your job has been posted successfully!'}</Text>
             <View style={styles.jobIdBadge}><Text style={[styles.jobIdText, { color: colors.primary }]}>Job ID: #{publishedJobId.slice(0, 8).toUpperCase()}</Text></View>
 
             <View style={styles.successActions}>
               <Pressable accessibilityRole="button" onPress={() => setIsPublished(false)} style={styles.viewJobButton}>
                 <Text style={[styles.viewJobText, { color: colors.textMuted }]}>View Job</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" onPress={onBack} style={[styles.homeButton, { backgroundColor: colors.primary }]}>
-                <Text style={styles.homeButtonText}>Go to Home</Text>
+              <Pressable accessibilityRole="button" onPress={isEditingJob ? onJobSaved : onBack} style={[styles.homeButton, { backgroundColor: colors.primary }]}> 
+                <Text style={styles.homeButtonText}>{isEditingJob ? 'Back to My Jobs' : 'Go to Home'}</Text>
               </Pressable>
             </View>
           </View>

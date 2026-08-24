@@ -10,10 +10,10 @@ type PostJobHeaderProps = {
 };
 
 function PostJobHeader({ onBack, title = 'Post a Job' }: PostJobHeaderProps) {
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { borderBottomColor: isDark ? '#263650' : '#E5E7EB' }]}>
       <Pressable
         accessibilityLabel="Go back"
         accessibilityRole="button"
@@ -23,7 +23,7 @@ function PostJobHeader({ onBack, title = 'Post a Job' }: PostJobHeaderProps) {
       >
         <Image
           source={require('../../../../images/back.png')}
-          style={[styles.backIcon]}
+          style={[styles.backIcon, { tintColor: colors.text }]}
           resizeMode="contain"
         />
       </Pressable>

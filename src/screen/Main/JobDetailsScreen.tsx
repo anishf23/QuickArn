@@ -1,5 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { useCustomAlert } from '../../components/CustomAlert';
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import type { PostedJob } from '../../services/jobs';
@@ -8,6 +9,7 @@ import PostJobHeader from './components/PostJobHeader';
 
 type JobDetailsScreenProps = {
   job?: PostedJob | null;
+  isOwner?: boolean;
   onBack: () => void;
   onCloseJob?: () => void;
   onEditJob?: () => void;
@@ -18,13 +20,24 @@ const formatJobDateTime = (date: Date) => date.toLocaleString('en-IN', {
   day: '2-digit', hour: '2-digit', minute: '2-digit', month: 'short', year: 'numeric',
 });
 
-function JobDetailsScreen({ job, onBack, onCloseJob, onEditJob, onPlaceBid }: JobDetailsScreenProps) {
+function JobDetailsScreen({ job, isOwner = false, onBack, onCloseJob, onEditJob, onPlaceBid }: JobDetailsScreenProps) {
   const { colors } = useAppTheme();
+  const { showAlert } = useCustomAlert();
   const title = job?.title ?? 'Need Delivery Boy for Documents';
   const description = job?.description ?? 'Need a reliable person to quickly pick up sensitive documents from branch in Paldi and deliver them securely to a client office in the Satellite area.\nMust have own vehicle.';
   const budget = job ? `₹${job.budget}${job.budgetType === 'hourly' ? ' / hour' : ''}` : '₹200';
   const pickupAddress = job ? [job.pickupDetails.address, job.pickupDetails.nearbyLocation].filter(Boolean).join(', ') : 'Paldi, Ahmedabad';
   const postedBy = job?.pickupDetails.name || 'Ravi Patel';
+  const confirmCloseJob = () => {
+    showAlert(
+      'Close Job',
+      'Are you sure you want to close this job? It will no longer accept bids.',
+      [
+        { style: 'cancel', text: 'Cancel' },
+        { onPress: onCloseJob, style: 'destructive', text: 'Close Job' },
+      ],
+    );
+  };
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -104,12 +117,12 @@ function JobDetailsScreen({ job, onBack, onCloseJob, onEditJob, onPlaceBid }: Jo
         </View>
       </ScrollView>
 
-      {job ? (
+      {isOwner ? (
         <View style={[styles.footer, styles.ownerFooter, { backgroundColor: colors.card }]}>
           <Pressable accessibilityRole="button" onPress={onEditJob} style={[styles.ownerButton, styles.editButton, { borderColor: colors.primary }]}>
             <Text style={[styles.editButtonText, { color: colors.primary }]}>Edit</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onCloseJob} style={[styles.ownerButton, { backgroundColor: '#DC2626' }]}>
+          <Pressable accessibilityRole="button" onPress={confirmCloseJob} style={[styles.ownerButton, { backgroundColor: '#DC2626' }]}> 
             <Text style={styles.ownerButtonText}>Close Job</Text>
           </Pressable>
         </View>

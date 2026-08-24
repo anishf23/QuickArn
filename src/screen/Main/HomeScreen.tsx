@@ -1,11 +1,26 @@
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
+import { getNearbyJobs, type NearbyJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
 
-type HomeScreenProps = { address: string; isOnline: boolean; onAvailabilityPress: () => void; onJobPress: () => void; onLocationPress: () => void; onNotificationPress: () => void; onProfilePress: () => void; onViewAll: () => void; onWalletPress: () => void };
+type HomeScreenProps = {
+  address: string;
+  isOnline: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  role?: string;
+  onAvailabilityPress: () => void;
+  onJobPress: (job: NearbyJob) => void;
+  onLocationPress: () => void;
+  onNotificationPress: () => void;
+  onProfilePress: () => void;
+  onViewAll: () => void;
+  onWalletPress: () => void;
+};
 
 const stats = [
   { icon: '₹', iconColor: '#18B978', iconSurface: '#E5FAEF', label: 'Total Earning', value: '₹1450' },
@@ -13,19 +28,67 @@ const stats = [
   { icon: '★', iconColor: '#E5AC12', iconSurface: '#FFF8DA', label: 'Rating', value: '4.5' },
 ];
 
-const jobs = [
-  { title: 'Delivery - Documents', area: 'Paldi, Ahmedabad', price: '₹200', distance: '2 km away' },
-  { title: 'Cooking - Lunch', area: 'Bodakdev, Ahmedabad', price: '₹300', distance: '3 km away' },
-];
+const formatDistance = (distanceKm: number) => distanceKm < 1
+  ? `${Math.max(1, Math.round(distanceKm * 1000))} m away`
+  : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km away`;
 
 function PersonAvatar({ onPress }: { onPress: () => void }) {
   return <Pressable accessibilityLabel="Open provider profile" accessibilityRole="button" hitSlop={5} onPress={onPress} style={styles.avatarWrap}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></Pressable>;
 }
 
-function HomeScreen({ address, isOnline, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onProfilePress, onViewAll, onWalletPress }: HomeScreenProps) {
+function HomeScreen({ address, isOnline, latitude, longitude, role, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onProfilePress, onViewAll, onWalletPress }: HomeScreenProps) {
   const { colors } = useAppTheme();
+  const [nearbyJobs, setNearbyJobs] = useState<NearbyJob[]>([]);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+  const [jobsMessage, setJobsMessage] = useState('');
+  const [visibleJobCount, setVisibleJobCount] = useState(20);
   const fullAddress = address?.trim() || 'Choose your location';
   const areaName = fullAddress.split(',')[0]?.trim() || 'Select Location';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      setNearbyJobs([]);
+      setJobsMessage('Choose your location to see nearby jobs.');
+      setIsLoadingJobs(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsLoadingJobs(true);
+    setJobsMessage('');
+    getNearbyJobs(latitude, longitude, 20)
+      .then(jobs => {
+        if (isMounted) {
+          setNearbyJobs(jobs);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setNearbyJobs([]);
+          setJobsMessage('Unable to load nearby jobs. Please try again.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingJobs(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [latitude, longitude]);
+
+  useEffect(() => {
+    setVisibleJobCount(20);
+  }, [nearbyJobs]);
+
+  const loadMoreJobs = () => {
+    setVisibleJobCount(currentCount => Math.min(currentCount + 20, nearbyJobs.length));
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.primary }]} edges={['left','right']}>
@@ -51,55 +114,73 @@ function HomeScreen({ address, isOnline, onAvailabilityPress, onJobPress, onLoca
       </View>
 
       <View style={[styles.content, { backgroundColor: colors.background }]}>
-        <View style={[styles.onlineCard, { backgroundColor: colors.card }]}>
-          <View style={styles.onlineDetails}>
-            <View style={styles.onlineIcon}><Text style={styles.onlinePerson}>●</Text></View>
-            <View>
-              <Text style={[styles.onlineTitle, { color: colors.text }]}>You are {isOnline ? 'Online' : 'Offline'}</Text>
-              <Text style={[styles.onlineSubtitle, { color: colors.textMuted }]}>{isOnline ? 'Ready to receive jobs' : 'Turn on to receive jobs'}</Text>
-            </View>
-          </View>
-          <Pressable
-            accessibilityLabel="Toggle online status"
-            accessibilityRole="switch"
-            accessibilityState={{ checked: isOnline }}
-            onPress={onAvailabilityPress}
-            style={[styles.switchTrack, isOnline ? styles.switchTrackOn : styles.switchTrackOff]}
-          >
-            <View style={[styles.switchKnob, isOnline ? styles.switchKnobOn : styles.switchKnobOff]} />
-          </Pressable>
-        </View>
-
-        <View style={styles.statsRow}>
-          {stats.map(stat => (
-            <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.card }]}>
-              <View style={[styles.statIcon, { backgroundColor: stat.iconSurface }]}><Text style={[styles.statIconText, { color: stat.iconColor }]}>{stat.icon}</Text></View>
-              <Text style={[styles.statLabel, { color: colors.textMuted }]}>{stat.label}</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>{stat.value}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Nearby Jobs</Text>
-          <Pressable accessibilityRole="button" onPress={onViewAll}><Text style={[styles.viewAll, { color: colors.primary }]}>View All</Text></Pressable>
-        </View>
-
-        <View style={styles.jobsList}>
-          {jobs.map(job => (
-            <View key={job.title} style={[styles.jobCard, { backgroundColor: colors.card }]}>
-              <PersonAvatar onPress={onProfilePress} />
-              <Pressable accessibilityRole="button" onPress={onJobPress} style={styles.jobInfo}>
-                <Text style={[styles.jobTitle, { color: colors.text }]}>{job.title}</Text>
-                <Text style={[styles.jobArea, { color: colors.textMuted }]}>⌖ {job.area}</Text>
-                <View style={styles.jobMetaRow}>
-                  <Text style={[styles.jobPrice, { color: colors.text }]}>{job.price}</Text>
-                  <View style={styles.distanceBadge}><Text style={[styles.distanceText, { color: colors.primary }]}>{job.distance}</Text></View>
+        <FlatList
+            data={isLoadingJobs ? [] : nearbyJobs.slice(0, visibleJobCount)}
+            keyExtractor={job => job.id}
+            contentContainerStyle={styles.listContent}
+            initialNumToRender={20}
+            ListEmptyComponent={isLoadingJobs ? (
+              <View style={styles.listLoading}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={[styles.listLoadingText, { color: colors.textMuted }]}>Loading nearby jobs...</Text>
+              </View>
+            ) : <Text style={[styles.jobsStateText, { color: colors.textMuted }]}>{jobsMessage || 'No open jobs found within 20 km.'}</Text>}
+            ListHeaderComponent={(
+              <>
+                <View style={[styles.onlineCard, { backgroundColor: colors.card }]}>
+                  <View style={styles.onlineDetails}>
+                    <View style={styles.onlineIcon}><Text style={styles.onlinePerson}>●</Text></View>
+                    <View>
+                      <Text style={[styles.onlineTitle, { color: colors.text }]}>You are {isOnline ? 'Online' : 'Offline'}</Text>
+                      <Text style={[styles.onlineSubtitle, { color: colors.textMuted }]}>{isOnline ? 'Ready to receive jobs' : 'Turn on to receive jobs'}</Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    accessibilityLabel="Toggle online status"
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: isOnline }}
+                    onPress={onAvailabilityPress}
+                    style={[styles.switchTrack, isOnline ? styles.switchTrackOn : styles.switchTrackOff]}
+                  >
+                    <View style={[styles.switchKnob, isOnline ? styles.switchKnobOn : styles.switchKnobOff]} />
+                  </Pressable>
                 </View>
-              </Pressable>
-            </View>
-          ))}
-        </View>
+
+                {role !== 'customer' ? (
+                  <View style={styles.statsRow}>
+                    {stats.map(stat => (
+                      <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.card }]}>
+                        <View style={[styles.statIcon, { backgroundColor: stat.iconSurface }]}><Text style={[styles.statIconText, { color: stat.iconColor }]}>{stat.icon}</Text></View>
+                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>{stat.label}</Text>
+                        <Text style={[styles.statValue, { color: colors.text }]}>{stat.value}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Nearby Jobs</Text>
+                  <Pressable accessibilityRole="button" onPress={onViewAll}><Text style={[styles.viewAll, { color: colors.primary }]}>View All</Text></Pressable>
+                </View>
+              </>
+            )}
+            onEndReached={isLoadingJobs ? undefined : loadMoreJobs}
+            onEndReachedThreshold={0.35}
+            renderItem={({ item: job }) => (
+              <View style={[styles.jobCard, { backgroundColor: colors.card }]}>
+                <PersonAvatar onPress={onProfilePress} />
+                <Pressable accessibilityRole="button" onPress={() => onJobPress(job)} style={styles.jobInfo}>
+                  <Text style={[styles.jobTitle, { color: colors.text }]}>{job.title}</Text>
+                  <Text style={[styles.jobArea, { color: colors.textMuted }]}>⌖ {job.pickupDetails.address || 'Pickup location'}</Text>
+                  <View style={styles.jobMetaRow}>
+                    <Text style={[styles.jobPrice, { color: colors.text }]}>₹{job.budget}{job.budgetType === 'hourly' ? ' / hr' : ''}</Text>
+                    <View style={styles.distanceBadge}><Text style={[styles.distanceText, { color: colors.primary }]}>{formatDistance(job.distanceKm)}</Text></View>
+                  </View>
+                </Pressable>
+              </View>
+            )}
+            showsVerticalScrollIndicator={false}
+          />
       </View>
     </SafeAreaView>
   );
@@ -125,7 +206,10 @@ const styles = StyleSheet.create({
   jobMetaRow: { alignItems: 'center', flexDirection: 'row', marginTop: 7 },
   jobPrice: { fontSize: rf(12), fontWeight: '800' },
   jobTitle: { fontSize: rf(13), fontWeight: '700' },
-  jobsList: { marginTop: 1 },
+  jobsStateText: { fontSize: rf(11), marginTop: 4, textAlign: 'center' },
+  listLoading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'center', minHeight: 90 },
+  listLoadingText: { fontSize: rf(11), marginLeft: 8 },
+  listContent: { flexGrow: 1, paddingBottom: 18 },
   locationArrow: { height: 10, marginLeft: 5, tintColor: '#FFFFFF', width: 10 },
   locationCopy: { flex: 1, paddingRight: 3 },
   locationIcon: { height: 16, marginRight: 7, tintColor: '#FFFFFF', width: 16 },
