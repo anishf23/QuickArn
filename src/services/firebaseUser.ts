@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuth, signInWithPhoneNumber, type ConfirmationResult, type User } from '@react-native-firebase/auth';
-import { doc, getDoc, getFirestore, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
+import { doc, getDoc, getFirestore, onSnapshot, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
 import { getMessaging, getToken, onTokenRefresh, registerDeviceForRemoteMessages } from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
 
@@ -16,6 +16,15 @@ const userDocument = (uid: string) => doc(getFirestore(), 'users', uid);
 export type StoredUserProfile = {
   address?: string;
   about?: string;
+  bankAccountDetails?: {
+    accountHolderName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    upiId?: string;
+  };
+  documentBackUrl?: string;
+  documentFrontUrl?: string;
+  documentType?: string;
   city?: string;
   email?: string;
   fullName?: string;
@@ -33,6 +42,8 @@ export type StoredUserProfile = {
   role?: string;
   skills?: string[];
   state?: string;
+  selfieUrl?: string;
+  verificationStatus?: string;
   uid: string;
 };
 
@@ -179,6 +190,26 @@ export async function getExistingUserProfile(uid: string) {
   const profile = { ...(snapshot.data() as StoredUserProfile), uid };
   await cacheUserProfile(profile);
   return profile;
+}
+
+/** Listens to the signed-in user's Firestore profile for verification changes. */
+export function subscribeToCurrentUserProfile(callback: (profile: StoredUserProfile | null) => void) {
+  const user = getAuth().currentUser;
+  if (!user) {
+    callback(null);
+    return () => {};
+  }
+
+  return onSnapshot(userDocument(user.uid), snapshot => {
+    if (!snapshot.exists()) {
+      callback(null);
+      return;
+    }
+
+    const profile = { ...(snapshot.data() as StoredUserProfile), uid: user.uid };
+    cacheUserProfile(profile).catch(() => {});
+    callback(profile);
+  }, () => callback(null));
 }
 
 export async function updateCurrentUser(fields: Record<string, unknown>) {

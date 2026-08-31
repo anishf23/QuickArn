@@ -13,6 +13,7 @@ type HomeScreenProps = {
   latitude: number | null;
   longitude: number | null;
   role?: string;
+  verificationStatus?: string;
   onAvailabilityPress: () => void;
   onJobPress: (job: NearbyJob) => void;
   onLocationPress: () => void;
@@ -36,7 +37,7 @@ function PersonAvatar({ onPress }: { onPress: () => void }) {
   return <Pressable accessibilityLabel="Open provider profile" accessibilityRole="button" hitSlop={5} onPress={onPress} style={styles.avatarWrap}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></Pressable>;
 }
 
-function HomeScreen({ address, isOnline, latitude, longitude, role, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onProfilePress, onViewAll, onWalletPress }: HomeScreenProps) {
+function HomeScreen({ address, isOnline, latitude, longitude, role, verificationStatus, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onProfilePress, onViewAll, onWalletPress }: HomeScreenProps) {
   const { colors } = useAppTheme();
   const [nearbyJobs, setNearbyJobs] = useState<NearbyJob[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
@@ -44,6 +45,8 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, onAvailabili
   const [visibleJobCount, setVisibleJobCount] = useState(20);
   const fullAddress = address?.trim() || 'Choose your location';
   const areaName = fullAddress.split(',')[0]?.trim() || 'Select Location';
+  const isVerificationPending = verificationStatus === 'pending';
+  const availabilityEnabled = isOnline && !isVerificationPending;
 
   useEffect(() => {
     let isMounted = true;
@@ -131,20 +134,22 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, onAvailabili
                   <View style={styles.onlineDetails}>
                     <View style={styles.onlineIcon}><Text style={styles.onlinePerson}>●</Text></View>
                     <View>
-                      <Text style={[styles.onlineTitle, { color: colors.text }]}>You are {isOnline ? 'Online' : 'Offline'}</Text>
-                      <Text style={[styles.onlineSubtitle, { color: colors.textMuted }]}>{isOnline ? 'Ready to receive jobs' : 'Turn on to receive jobs'}</Text>
+                      <Text style={[styles.onlineTitle, { color: colors.text }]}>You are {availabilityEnabled ? 'Online' : 'Offline'}</Text>
+                      <Text style={[styles.onlineSubtitle, { color: colors.textMuted }]}>{availabilityEnabled ? 'Ready to receive jobs' : 'Turn on to receive jobs'}</Text>
                     </View>
                   </View>
                   <Pressable
                     accessibilityLabel="Toggle online status"
                     accessibilityRole="switch"
-                    accessibilityState={{ checked: isOnline }}
+                    accessibilityState={{ checked: availabilityEnabled, disabled: isVerificationPending }}
+                    disabled={isVerificationPending}
                     onPress={onAvailabilityPress}
-                    style={[styles.switchTrack, isOnline ? styles.switchTrackOn : styles.switchTrackOff]}
+                    style={[styles.switchTrack, availabilityEnabled ? styles.switchTrackOn : styles.switchTrackOff, isVerificationPending && styles.switchTrackDisabled]}
                   >
-                    <View style={[styles.switchKnob, isOnline ? styles.switchKnobOn : styles.switchKnobOff]} />
+                    <View style={[styles.switchKnob, availabilityEnabled ? styles.switchKnobOn : styles.switchKnobOff]} />
                   </Pressable>
                 </View>
+                {verificationStatus === 'pending' ? <Text style={styles.verificationMessage}>Your verification is pending. You can go online after approval.</Text> : null}
 
                 {role !== 'customer' ? (
                   <View style={styles.statsRow}>
@@ -237,7 +242,9 @@ const styles = StyleSheet.create({
   switchTrack: { borderRadius: 15, height: 28, justifyContent: 'center', paddingHorizontal: 3, width: 46 },
   switchTrackOff: { backgroundColor: '#CBD5E1' },
   switchTrackOn: { backgroundColor: brandColors.blue },
+  switchTrackDisabled: { opacity: 0.55 },
   viewAll: { fontSize: rf(11), fontWeight: '800' },
+  verificationMessage: { color: '#DC2626', fontSize: rf(10), lineHeight: rf(14), marginTop: 8, textAlign: 'center' },
   walletIcon: { height: hp(2.7), tintColor: '#FFFFFF', width: hp(2.7) },
   walletWrap: { alignItems: 'center', height: hp(4), justifyContent: 'center', marginRight: 3, width: hp(4) },
 });

@@ -47,10 +47,11 @@ type ProfileScreenProps = {
   onMyJobs: () => void;
   onMyPortfolio: () => void;
   onWallet: () => void;
+  onVerification: () => void;
   onLogout: () => void;
 };
 
-function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPortfolio, onWallet, onLogout }: ProfileScreenProps) {
+function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPortfolio, onWallet, onVerification, onLogout }: ProfileScreenProps) {
   const { colors } = useAppTheme();
   const { showAlert } = useCustomAlert();
   const [profile, setProfile] = useState<StoredUserProfile | null>(null);
@@ -89,6 +90,8 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
           <Pressable accessibilityRole="button" onPress={onEditProfile} style={[styles.editButton, { borderColor: colors.primary }]}>
             <Text style={[styles.editText, { color: colors.primary }]}>Edit Profile</Text>
           </Pressable>
+          {profile?.verificationStatus === 'pending' ? <Text style={styles.pendingMessage}>Verification pending — documents are under review.</Text> : null}
+          {profile?.verificationStatus === 'failed' ? <Text style={styles.failedMessage}>Verification failed — please submit your documents again.</Text> : null}
         </View>
       </View>
 
@@ -96,7 +99,7 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
         <View style={styles.verificationSection}>
           <Text style={[styles.verificationHeading, { color: colors.textMuted }]}>VERIFICATION</Text>
           {verificationItems.map(item => (
-            <Pressable key={item.label} accessibilityRole="button" style={styles.verificationCard}>
+            <Pressable key={item.label} accessibilityRole="button" disabled={profile?.verificationStatus === 'pending'} onPress={onVerification} style={[styles.verificationCard, profile?.verificationStatus === 'pending' && styles.lockedVerificationCard]}>
               <View style={styles.verificationIcon}>
                 <Text style={[styles.verificationSymbol, { color: colors.primary }]}>{item.icon}</Text>
               </View>
@@ -104,7 +107,7 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
                 <Text style={[styles.verificationLabel, { color: colors.text }]}>{item.label}</Text>
                 <Text style={[styles.verificationDetail, { color: colors.textMuted }]}>{item.detail}</Text>
               </View>
-              <Text style={[styles.verifyText, { color: colors.primary }]}>Verify</Text>
+              <Text style={[styles.verifyText, { color: colors.primary }]}>{profile?.verificationStatus === 'pending' ? 'Pending' : profile?.verificationStatus === 'failed' ? 'Resubmit' : 'Verify'}</Text>
               <Text style={[styles.verificationArrow, { color: colors.primary }]}>›</Text>
             </Pressable>
           ))}
@@ -112,7 +115,7 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
       )}
 
       {!isCustomer && (
-        <View style={styles.skillsSection}>
+          <Pressable disabled={profile?.verificationStatus === 'pending'} onPress={onVerification} style={[styles.skillsSection, profile?.verificationStatus === 'pending' && styles.lockedVerificationCard]}>
           <Text style={[styles.skillsHeading, { color: colors.text }]}>My Skills</Text>
           <View style={styles.skillList}>
             {skills.map(skill => (
@@ -122,7 +125,7 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
             ))}
             {skills.length === 0 ? <Text style={[styles.emptySkillsText, { color: colors.textMuted }]}>No skills added yet.</Text> : null}
           </View>
-        </View>
+        </Pressable>
       )}
 
       <View style={styles.menu}>
@@ -178,15 +181,17 @@ const styles = StyleSheet.create({
   menuItem: { alignItems: 'center', borderBottomColor: '#E9E2EE', borderBottomWidth: 1, flexDirection: 'row', height: 48, paddingHorizontal: 6 },
   menuLabel: { flex: 1, fontSize: RFValue(14), fontWeight: '600', marginLeft: 10 },
   name: { fontSize: RFValue(14), fontWeight: '800' },
+  failedMessage: { color: '#DC2626', fontSize: RFValue(10), marginTop: 9, textAlign: 'center' },
+  pendingMessage: { color: '#D97706', fontSize: RFValue(10), marginTop: 9, textAlign: 'center' },
   profileDetails: { alignItems: 'center', marginTop: 12 },
   profileHeader: { alignItems: 'center', paddingBottom: 20, paddingTop: 27 },
   ratingRow: { alignItems: 'center', flexDirection: 'row', marginTop: 4 },
   ratingText: { fontSize: RFValue(11), marginLeft: 4 },
   screen: { flex: 1 },
   scrollContent: { paddingBottom: 24 },
-  skillChip: { alignItems: 'center', borderRadius: 16, flexBasis: '31%', height: 30, justifyContent: 'center', marginBottom: 8 },
+  skillChip: { alignItems: 'center', borderRadius: 16, height: 32, justifyContent: 'center', width: '31.5%' },
   skillChipText: { fontSize: 10, fontWeight: '700' },
-  skillList: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 10 },
+  skillList: { columnGap: '2.75%', flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, rowGap: 8 },
   skillsHeading: { fontSize: RFValue(14), fontWeight: '800' },
   skillsSection: { paddingHorizontal: 18, paddingTop: 20 },
   star: { color: '#7D00F5', fontSize: RFValue(11) },
@@ -194,6 +199,7 @@ const styles = StyleSheet.create({
   verificationCard: { alignItems: 'center', backgroundColor: '#FFFFFF', 
     borderColor: '#E4D9EB', borderRadius: 10, borderWidth: 1,
      flexDirection: 'row', marginTop: 7, minHeight: hp(7), paddingHorizontal: 13 },
+  lockedVerificationCard: { opacity: 0.65 },
   verificationCopy: { flex: 1, marginLeft: 9 },
   verificationDetail: { fontSize: RFValue(10), lineHeight: 12, marginTop: 2 },
   verificationHeading: { fontSize: RFValue(14), fontWeight: '800', marginLeft: 6 },

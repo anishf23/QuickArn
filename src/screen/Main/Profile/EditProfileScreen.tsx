@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, type ScrollViewInstance, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, TextInput, type ScrollViewInstance, View } from 'react-native';
 import { RFValue } from 'react-native-responsive-fontsize';
 
 import { useAppTheme } from '../../../theme/AppTheme';
@@ -11,11 +11,12 @@ import PostJobHeader from '../components/PostJobHeader';
 
 type EditProfileScreenProps = {
   onBack: () => void;
+  onVerification: () => void;
 };
 
 const genders = ['Male', 'Female', 'Other'] as const;
 
-function EditProfileScreen({ onBack }: EditProfileScreenProps) {
+function EditProfileScreen({ onBack, onVerification }: EditProfileScreenProps) {
   const { colors } = useAppTheme();
   const { showAlert } = useCustomAlert();
   const [name, setName] = useState('');
@@ -24,8 +25,9 @@ function EditProfileScreen({ onBack }: EditProfileScreenProps) {
   const [about, setAbout] = useState('');
   const [gender, setGender] = useState<(typeof genders)[number]>('Male');
   const [skills, setSkills] = useState<string[]>([]);
-  const [isCustomer, setIsCustomer] = useState(false);
+  const [role, setRole] = useState('customer');
   const [isSaving, setIsSaving] = useState(false);
+  const [verification, setVerification] = useState({ backUrl: '', frontUrl: '', selfieUrl: '', status: '', type: '', bankAccount: { accountHolderName: '', accountNumber: '', ifscCode: '', upiId: '' } });
   const scrollViewRef = useRef<ScrollViewInstance>(null);
 
   useEffect(() => {
@@ -39,7 +41,8 @@ function EditProfileScreen({ onBack }: EditProfileScreenProps) {
       setEmail(profile.email ?? '');
       setAbout(profile.about ?? '');
       setSkills(profile.skills ?? []);
-      setIsCustomer(profile.role === 'customer');
+      setRole(profile.role ?? 'customer');
+      setVerification({ backUrl: profile.documentBackUrl ?? '', frontUrl: profile.documentFrontUrl ?? '', selfieUrl: profile.selfieUrl ?? '', status: profile.verificationStatus ?? '', type: profile.documentType ?? '', bankAccount: { accountHolderName: profile.bankAccountDetails?.accountHolderName ?? '', accountNumber: profile.bankAccountDetails?.accountNumber ?? '', ifscCode: profile.bankAccountDetails?.ifscCode ?? '', upiId: profile.bankAccountDetails?.upiId ?? '' } });
       if (profile.gender === 'Male' || profile.gender === 'Female' || profile.gender === 'Other') {
         setGender(profile.gender);
       }
@@ -53,6 +56,7 @@ function EditProfileScreen({ onBack }: EditProfileScreenProps) {
     .map(part => part[0])
     .join('')
     .toUpperCase() || 'U';
+  const isProvider = role === 'provider';
 
   const saveProfile = async () => {
     if (isSaving) {
@@ -146,7 +150,7 @@ function EditProfileScreen({ onBack }: EditProfileScreenProps) {
               );
             })}
           </View>
-          {!isCustomer && (
+          {isProvider && (
             <>
               <Text style={[styles.label, { color: colors.text }]}>My Skills</Text>
               <View style={styles.skillsList}>
@@ -161,6 +165,19 @@ function EditProfileScreen({ onBack }: EditProfileScreenProps) {
               </View>
             </>
           )}
+          {isProvider && verification.type ? (
+            <>
+              <Text style={[styles.label, { color: colors.text }]}>Identity Documents</Text>
+              <Pressable disabled={verification.status === 'pending'} onPress={onVerification} style={[styles.verificationReadOnly, { backgroundColor: colors.background, borderColor: '#E1D8E9' }]}>
+                <Text style={[styles.verificationTitle, { color: colors.text }]}>{verification.type}</Text>
+                {verification.frontUrl ? <Pressable onPress={() => Linking.openURL(verification.frontUrl).catch(() => {})}><Text style={[styles.documentLink, { color: colors.primary }]}>View Front Document</Text></Pressable> : null}
+                {verification.backUrl ? <Pressable onPress={() => Linking.openURL(verification.backUrl).catch(() => {})}><Text style={[styles.documentLink, { color: colors.primary }]}>View Back Document</Text></Pressable> : null}
+                <Text style={[styles.verificationHint, { color: verification.status === 'failed' ? '#DC2626' : colors.textMuted }]}>{verification.status === 'pending' ? 'Documents are pending review and cannot be changed.' : verification.status === 'failed' ? 'Verification failed. Return to Profile and choose Resubmit.' : 'Verification documents are read-only here.'}</Text>
+              </Pressable>
+            </>
+          ) : null}
+          {isProvider && verification.selfieUrl ? <><Text style={[styles.label, { color: colors.text }]}>Selfie Verification</Text><Pressable disabled={verification.status === 'pending'} onPress={onVerification} style={[styles.verificationReadOnly, { backgroundColor: colors.background, borderColor: '#E1D8E9' }]}><Pressable onPress={() => Linking.openURL(verification.selfieUrl).catch(() => {})}><Text style={[styles.documentLink, { color: colors.primary }]}>View Uploaded Selfie</Text></Pressable><Text style={[styles.verificationHint, { color: colors.textMuted }]}>Tap this section to update when verification has failed.</Text></Pressable></> : null}
+          {isProvider && verification.bankAccount.accountNumber ? <><Text style={[styles.label, { color: colors.text }]}>Bank Account Details</Text><Pressable disabled={verification.status === 'pending'} onPress={onVerification} style={[styles.verificationReadOnly, { backgroundColor: colors.background, borderColor: '#E1D8E9' }]}><Text style={[styles.bankValue, { color: colors.text }]}>Account holder: {verification.bankAccount.accountHolderName}</Text><Text style={[styles.bankValue, { color: colors.textMuted }]}>Account: •••• {verification.bankAccount.accountNumber.slice(-4)}</Text><Text style={[styles.bankValue, { color: colors.textMuted }]}>IFSC: {verification.bankAccount.ifscCode}</Text>{verification.bankAccount.upiId ? <Text style={[styles.bankValue, { color: colors.textMuted }]}>UPI: {verification.bankAccount.upiId}</Text> : null}</Pressable></> : null}
           <Text style={[styles.label, { color: colors.text }]}>About You</Text>
           <TextInput
             blurOnSubmit
@@ -207,6 +224,11 @@ const styles = StyleSheet.create({
   removeSkill: { fontSize: 17, fontWeight: '500', lineHeight: 18, marginLeft: 5 },
   saveButton: { alignItems: 'center', borderRadius: 8, height: 48, justifyContent: 'center' },
   saveText: { color: '#FFFFFF', fontSize: RFValue(14), fontWeight: '800' },
+  verificationReadOnly: { borderRadius: 9, borderWidth: 1, padding: 13 },
+  verificationTitle: { fontSize: RFValue(13), fontWeight: '800', marginBottom: 7 },
+  documentLink: { fontSize: RFValue(12), fontWeight: '700', marginTop: 6 },
+  verificationHint: { fontSize: RFValue(10), lineHeight: 14, marginTop: 10 },
+  bankValue: { fontSize: RFValue(11), lineHeight: 17, marginTop: 3 },
   screen: { flex: 1 },
   scrollView: { flex: 1 },
   skillChip: { alignItems: 'center', borderRadius: 16, flexDirection: 'row', marginBottom: 8, marginRight: 8, paddingHorizontal: 10, paddingVertical: 6 },

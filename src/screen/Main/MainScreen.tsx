@@ -24,7 +24,7 @@ import PostJobScreen from './PostJobScreen';
 import ProfileScreen from './ProfileScreen';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text, useLocalization } from '../../localization/AppLocalization';
-import { getCachedUserProfile, signOutCurrentUser, updateCurrentUser } from '../../services/firebaseUser';
+import { getCachedUserProfile, signOutCurrentUser, subscribeToCurrentUserProfile, updateCurrentUser } from '../../services/firebaseUser';
 import { closeJob, type PostedJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
 
@@ -64,15 +64,24 @@ function MainScreen({ navigation, route }: Props) {
   const [isViewingOwnJob, setIsViewingOwnJob] = useState(false);
   const [locationCoordinates, setLocationCoordinates] = useState<{ latitude: number | null; longitude: number | null }>({ latitude: null, longitude: null });
   const [userRole, setUserRole] = useState('');
+  const [verificationStatus, setVerificationStatus] = useState('');
+  const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
     getCachedUserProfile().then(profile => {
       setUserRole(profile?.role ?? '');
+      setVerificationStatus(profile?.verificationStatus ?? '');
+      setIsVerified(Boolean(profile?.isVerified));
       if (typeof profile?.latitude === 'number' && typeof profile.longitude === 'number') {
         setLocationCoordinates({ latitude: profile.latitude, longitude: profile.longitude });
       }
     }).catch(() => {});
   }, []);
+
+  useEffect(() => subscribeToCurrentUserProfile(profile => {
+    setVerificationStatus(profile?.verificationStatus ?? '');
+    setIsVerified(Boolean(profile?.isVerified));
+  }), []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -169,13 +178,13 @@ function MainScreen({ navigation, route }: Props) {
         }}
       />
     ) : isEditingProfile ? (
-      <EditProfileScreen onBack={() => setIsEditingProfile(false)} />
+      <EditProfileScreen onBack={() => setIsEditingProfile(false)} onVerification={() => { setIsEditingProfile(false); setIsVerifyingProfile(true); }} />
     ) : isVerifyingProfile ? (
       <VerificationScreen
         onBack={() => setIsVerifyingProfile(false)}
         onComplete={() => {
-          setIsOnline(true);
-          updateCurrentUser({ isOnline: true, isVerified: true }).catch(() => {});
+          setIsOnline(false);
+          updateCurrentUser({ isOnline: false, isVerified: false }).catch(() => {});
           setIsVerifyingProfile(false);
           setActiveTab('Home');
         }}
@@ -278,7 +287,20 @@ function MainScreen({ navigation, route }: Props) {
         latitude={locationCoordinates.latitude}
         longitude={locationCoordinates.longitude}
         role={userRole}
-        onAvailabilityPress={() => setIsVerifyingProfile(true)}
+        verificationStatus={verificationStatus}
+        onAvailabilityPress={() => {
+          if (isVerified || verificationStatus === 'verified') {
+            setIsOnline(current => {
+              updateCurrentUser({ isOnline: !current }).catch(() => {});
+              return !current;
+            });
+            return;
+          }
+
+          if (verificationStatus !== 'pending') {
+            setIsVerifyingProfile(true);
+          }
+        }}
         onJobPress={job => {
           setSelectedJob(job);
           setIsViewingOwnJob(false);
@@ -294,7 +316,7 @@ function MainScreen({ navigation, route }: Props) {
       <PostJobScreen onBack={() => setActiveTab('Home')} />
     ) : activeTab === 'Chat' ? (
       isViewingSingleChat ? <ChatScreen onBack={() => setIsViewingSingleChat(false)} /> : <ChatListScreen onOpenChat={() => setIsViewingSingleChat(true)} />
-    ) : <ProfileScreen onEditProfile={() => setIsEditingProfile(true)} onLanguage={() => navigation.navigate('LanguageSelection', { mode: 'profile' })} onMyBids={() => setIsViewingMyBids(true)} onMyJobs={() => setIsViewingMyJobs(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} onLogout={() => {
+    ) : <ProfileScreen onEditProfile={() => setIsEditingProfile(true)} onLanguage={() => navigation.navigate('LanguageSelection', { mode: 'profile' })} onMyBids={() => setIsViewingMyBids(true)} onMyJobs={() => setIsViewingMyJobs(true)} onMyPortfolio={() => setIsViewingMyPortfolio(true)} onWallet={() => setIsViewingWallet(true)} onVerification={() => setIsVerifyingProfile(true)} onLogout={() => {
       handleLogout().catch(() => {});
     }} />;
 
