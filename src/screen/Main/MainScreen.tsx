@@ -229,6 +229,7 @@ function MainScreen({ navigation, route }: Props) {
       />
     ) : isPlacingBid ? (
       <PlaceBidScreen
+        job={selectedJob}
         onBack={() => setIsPlacingBid(false)}
         onGoHome={() => {
           setActiveTab('Home');
@@ -245,6 +246,9 @@ function MainScreen({ navigation, route }: Props) {
       <JobDetailsScreen
         job={selectedJob}
         isOwner={isViewingOwnJob}
+        isOnline={isOnline}
+        role={userRole}
+        verificationStatus={verificationStatus}
         onBack={() => {
           setIsViewingJobDetails(false);
           if (selectedJob && isViewingOwnJob) {
@@ -279,6 +283,11 @@ function MainScreen({ navigation, route }: Props) {
         latitude={locationCoordinates.latitude}
         longitude={locationCoordinates.longitude}
         onBack={() => setIsBrowsingJobs(false)}
+        onJobPress={job => {
+          setSelectedJob(job);
+          setIsViewingOwnJob(false);
+          setIsViewingJobDetails(true);
+        }}
       />
     ) : activeTab === 'Home' ? (
       <HomeScreen

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getAuth } from '@react-native-firebase/auth';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
+import Shimmer from '../../components/Shimmer';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { getNearbyJobs, type NearbyJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
@@ -47,6 +49,7 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
   const areaName = fullAddress.split(',')[0]?.trim() || 'Select Location';
   const isVerificationPending = verificationStatus === 'pending';
   const availabilityEnabled = isOnline && !isVerificationPending;
+  const currentUserId = getAuth().currentUser?.uid;
 
   useEffect(() => {
     let isMounted = true;
@@ -123,9 +126,11 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
             contentContainerStyle={styles.listContent}
             initialNumToRender={20}
             ListEmptyComponent={isLoadingJobs ? (
-              <View style={styles.listLoading}>
-                <ActivityIndicator color={colors.primary} />
-                <Text style={[styles.listLoadingText, { color: colors.textMuted }]}>Loading nearby jobs...</Text>
+              <View style={styles.shimmerList}>
+                {[0, 1, 2,3,4,5,6,7,8].map(item => <View key={item} style={[styles.shimmerJobCard, { backgroundColor: colors.card }]}>
+                  <Shimmer style={styles.shimmerAvatar} />
+                  <View style={styles.shimmerCopy}><Shimmer style={styles.shimmerTitle} /><Shimmer style={styles.shimmerLine} /><Shimmer style={styles.shimmerMeta} /></View>
+                </View>)}
               </View>
             ) : <Text style={[styles.jobsStateText, { color: colors.textMuted }]}>{jobsMessage || 'No open jobs found within 20 km.'}</Text>}
             ListHeaderComponent={(
@@ -171,19 +176,28 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
             )}
             onEndReached={isLoadingJobs ? undefined : loadMoreJobs}
             onEndReachedThreshold={0.35}
-            renderItem={({ item: job }) => (
-              <View style={[styles.jobCard, { backgroundColor: colors.card }]}>
+            renderItem={({ item: job }) => {
+              const hasAlreadyBid = Boolean(currentUserId && job.bidderIds?.includes(currentUserId));
+              const bidCount = job.bidCount ?? job.bidderIds?.length ?? 0;
+
+              return (
+              <View style={[styles.jobCard, { backgroundColor: colors.card }]}> 
                 <PersonAvatar onPress={onProfilePress} />
                 <Pressable accessibilityRole="button" onPress={() => onJobPress(job)} style={styles.jobInfo}>
-                  <Text style={[styles.jobTitle, { color: colors.text }]}>{job.title}</Text>
+                  <View style={styles.jobTitleRow}>
+                    <Text numberOfLines={1} style={[styles.jobTitle, styles.jobTitleCopy, { color: colors.text }]}>{job.title}</Text>
+                    {hasAlreadyBid ? <View style={[styles.alreadyBidBadge, { backgroundColor: '#EDE9FE' }]}><Text style={[styles.alreadyBidText, { color: colors.primary }]}>Already bid</Text></View> : null}
+                  </View>
                   <Text style={[styles.jobArea, { color: colors.textMuted }]}>⌖ {job.pickupDetails.address || 'Pickup location'}</Text>
                   <View style={styles.jobMetaRow}>
                     <Text style={[styles.jobPrice, { color: colors.text }]}>₹{job.budget}{job.budgetType === 'hourly' ? ' / hr' : ''}</Text>
+                    <Text style={[styles.bidCountText, { color: colors.textMuted }]}>{bidCount} {bidCount === 1 ? 'bid' : 'bids'}</Text>
                     <View style={styles.distanceBadge}><Text style={[styles.distanceText, { color: colors.primary }]}>{formatDistance(job.distanceKm)}</Text></View>
                   </View>
                 </Pressable>
               </View>
-            )}
+              );
+            }}
             showsVerticalScrollIndicator={false}
           />
       </View>
@@ -192,6 +206,9 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
 }
 
 const styles = StyleSheet.create({
+  alreadyBidBadge: { borderRadius: 10, marginLeft: 7, paddingHorizontal: 7, paddingVertical: 3 },
+  alreadyBidText: { fontSize: rf(8), fontWeight: '800' },
+  bidCountText: { fontSize: rf(9), fontWeight: '600', marginLeft: 9 },
   avatarBody: { backgroundColor: '#A7ADBA', borderRadius: 10, height: 9, marginTop: 3, width: 18 },
   avatarHead: { backgroundColor: '#A7ADBA', borderRadius: 5, height: 10, width: 10 },
   avatarWrap: { alignItems: 'center', backgroundColor: '#F2F3F6', borderRadius: 22, height: 44, justifyContent: 'center', width: 44 },
@@ -211,9 +228,9 @@ const styles = StyleSheet.create({
   jobMetaRow: { alignItems: 'center', flexDirection: 'row', marginTop: 7 },
   jobPrice: { fontSize: rf(12), fontWeight: '800' },
   jobTitle: { fontSize: rf(13), fontWeight: '700' },
+  jobTitleCopy: { flex: 1 },
+  jobTitleRow: { alignItems: 'center', flexDirection: 'row' },
   jobsStateText: { fontSize: rf(11), marginTop: 4, textAlign: 'center' },
-  listLoading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'center', minHeight: 90 },
-  listLoadingText: { fontSize: rf(11), marginLeft: 8 },
   listContent: { flexGrow: 1, paddingBottom: 18 },
   locationArrow: { height: 10, marginLeft: 5, tintColor: '#FFFFFF', width: 10 },
   locationCopy: { flex: 1, paddingRight: 3 },
@@ -236,6 +253,13 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: rf(9), lineHeight: rf(11), minHeight: rf(21), textAlign: 'center' },
   statValue: { fontSize: rf(14), fontWeight: '800', marginTop: 1 },
   statsRow: { flexDirection: 'row', marginHorizontal: -4, marginTop: 13 },
+  shimmerAvatar: { borderRadius: 22, height: 44, width: 44 },
+  shimmerCopy: { flex: 1, marginLeft: 12 },
+  shimmerJobCard: { alignItems: 'center', borderRadius: 12, flexDirection: 'row', marginBottom: 13, padding: 12 },
+  shimmerLine: { borderRadius: 4, height: 10, marginTop: 8, width: '76%' },
+  shimmerList: { marginTop: 1 },
+  shimmerMeta: { borderRadius: 4, height: 11, marginTop: 10, width: '48%' },
+  shimmerTitle: { borderRadius: 4, height: 14, width: '62%' },
   switchKnob: { backgroundColor: '#FFFFFF', borderRadius: 11, height: 22, width: 22 },
   switchKnobOff: { transform: [{ translateX: 0 }] },
   switchKnobOn: { transform: [{ translateX: 18 }] },

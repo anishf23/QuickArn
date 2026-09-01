@@ -28,6 +28,8 @@ export type CreateJobInput = {
 };
 
 export type PostedJob = Omit<CreateJobInput, 'jobDateTime' | 'closeDateTime'> & {
+  bidCount?: number;
+  bidderIds?: string[];
   createdAt?: Date;
   geohash: string | null;
   id: string;
@@ -226,6 +228,8 @@ export async function createJob(input: CreateJobInput) {
     closeDateTime: Timestamp.fromDate(input.closeDateTime),
     pickupDetails: input.pickupDetails,
     dropDetails: input.dropDetails,
+    bidCount: 0,
+    bidderIds: [],
     status: 'open',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

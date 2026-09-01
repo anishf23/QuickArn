@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { getAuth } from '@react-native-firebase/auth';
 import { collection, getDocs, getFirestore } from '@react-native-firebase/firestore';
 
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
+import Shimmer from '../../components/Shimmer';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { getNearbyJobs, type NearbyJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
@@ -12,6 +14,7 @@ type BrowseJobsScreenProps = {
   latitude: number | null;
   longitude: number | null;
   onBack: () => void;
+  onJobPress: (job: NearbyJob) => void;
 };
 
 type CategoryFilter = {
@@ -23,7 +26,7 @@ const formatDistance = (distanceKm: number) => distanceKm < 1
   ? `${Math.max(1, Math.round(distanceKm * 1000))} m`
   : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km`;
 
-function BrowseJobsScreen({ latitude, longitude, onBack }: BrowseJobsScreenProps) {
+function BrowseJobsScreen({ latitude, longitude, onBack, onJobPress }: BrowseJobsScreenProps) {
   const { colors, isDark } = useAppTheme();
   const [jobs, setJobs] = useState<NearbyJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,6 +35,7 @@ function BrowseJobsScreen({ latitude, longitude, onBack }: BrowseJobsScreenProps
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [visibleCount, setVisibleCount] = useState(20);
   const [categories, setCategories] = useState<CategoryFilter[]>([]);
+  const currentUserId = getAuth().currentUser?.uid;
 
   useEffect(() => {
     let isMounted = true;
@@ -111,9 +115,11 @@ function BrowseJobsScreen({ latitude, longitude, onBack }: BrowseJobsScreenProps
         initialNumToRender={20}
         keyExtractor={job => job.id}
         ListEmptyComponent={isLoading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={[styles.stateText, { color: colors.textMuted }]}>Loading jobs...</Text>
+          <View style={styles.shimmerList}>
+            {[0, 1, 2,3,4,5,6,7,8].map(item => <View key={item} style={[styles.shimmerJobCard, { backgroundColor: colors.card }]}>
+              <Shimmer style={styles.shimmerIcon} />
+              <View style={styles.shimmerCopy}><Shimmer style={styles.shimmerTitle} /><Shimmer style={styles.shimmerLine} /><Shimmer style={styles.shimmerMeta} /></View>
+            </View>)}
           </View>
         ) : <Text style={[styles.stateText, { color: colors.textMuted }]}>{message || 'No open jobs found within 50 km.'}</Text>}
         ListHeaderComponent={(
@@ -134,8 +140,12 @@ function BrowseJobsScreen({ latitude, longitude, onBack }: BrowseJobsScreenProps
         )}
         onEndReached={() => setVisibleCount(current => Math.min(current + 20, filteredJobs.length))}
         onEndReachedThreshold={0.35}
-        renderItem={({ item: job }) => (
-          <View style={[styles.jobCard, { backgroundColor: colors.card }]}>
+        renderItem={({ item: job }) => {
+          const hasAlreadyBid = Boolean(currentUserId && job.bidderIds?.includes(currentUserId));
+          const bidCount = job.bidCount ?? job.bidderIds?.length ?? 0;
+
+          return (
+          <Pressable accessibilityRole="button" onPress={() => onJobPress(job)} style={[styles.jobCard, { backgroundColor: colors.card }]}> 
             <View style={[styles.jobIconWrap, { backgroundColor: isDark ? '#262042' : '#F0E8FF' }]}><Text style={[styles.jobIcon, { color: colors.primary }]}>▣</Text></View>
             <View style={styles.jobDetails}>
               <View style={styles.jobTitleRow}>
@@ -143,13 +153,18 @@ function BrowseJobsScreen({ latitude, longitude, onBack }: BrowseJobsScreenProps
                 <Text style={[styles.distance, { color: colors.textMuted }]}>{formatDistance(job.distanceKm)}</Text>
               </View>
               <Text numberOfLines={1} style={[styles.location, { color: colors.textMuted }]}>{job.pickupDetails.address || 'Pickup location'}</Text>
+              <View style={styles.bidInfoRow}>
+                {hasAlreadyBid ? <View style={styles.alreadyBidBadge}><Text style={[styles.alreadyBidText, { color: colors.primary }]}>Already bid</Text></View> : null}
+                <Text style={[styles.bidCount, { color: colors.textMuted }]}>{bidCount} {bidCount === 1 ? 'bid' : 'bids'}</Text>
+              </View>
               <View style={styles.jobMeta}>
                 <Text style={[styles.price, { color: colors.primary }]}>₹{job.budget}{job.budgetType === 'hourly' ? ' / hr' : ''}</Text>
                 <Text style={[styles.category, { color: colors.textMuted }]}>{job.category}</Text>
               </View>
             </View>
-          </View>
-        )}
+          </Pressable>
+          );
+        }}
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -157,6 +172,10 @@ function BrowseJobsScreen({ latitude, longitude, onBack }: BrowseJobsScreenProps
 }
 
 const styles = StyleSheet.create({
+  alreadyBidBadge: { backgroundColor: '#EDE9FE', borderRadius: 9, paddingHorizontal: 7, paddingVertical: 2 },
+  alreadyBidText: { fontSize: rf(8), fontWeight: '800' },
+  bidCount: { fontSize: rf(9), fontWeight: '600', marginLeft: 7 },
+  bidInfoRow: { alignItems: 'center', flexDirection: 'row', marginTop: 5 },
   category: { fontSize: rf(10), marginLeft: 7 },
   distance: { fontSize: rf(9), marginLeft: 8 },
   filter: { alignItems: 'center', borderRadius: 13, height: hp(3), justifyContent: 'center', marginRight: 7, paddingHorizontal: 12 },
@@ -173,13 +192,19 @@ const styles = StyleSheet.create({
   jobTitle: { flex: 1, fontSize: rf(13), fontWeight: '800' },
   jobTitleRow: { alignItems: 'center', flexDirection: 'row' },
   listContent: { flexGrow: 1, paddingBottom: 18, paddingHorizontal: 13, paddingTop: 2,marginTop:10 },
-  loadingState: { alignItems: 'center', flexDirection: 'row', justifyContent: 'center', minHeight: 100 },
   location: { fontSize: rf(9), marginTop: 2 },
   price: { fontSize: rf(13), fontWeight: '800' },
   screen: { flex: 1 },
   searchBox: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#DED6E8', borderRadius: 6, borderWidth: 1, flexDirection: 'row', height: hp(6), paddingHorizontal: 8 },
   searchIcon: { fontSize: rf(26), marginRight: 5 },
   searchInput: { flex: 1, fontSize: rf(14), paddingVertical: 0 },
+  shimmerCopy: { flex: 1, marginLeft: 10 },
+  shimmerIcon: { borderRadius: 18, height: 36, width: 36 },
+  shimmerJobCard: { alignItems: 'center', borderRadius: 7, flexDirection: 'row', marginBottom: 11, minHeight: 71, paddingHorizontal: 10, paddingVertical: 10 },
+  shimmerLine: { borderRadius: 4, height: 9, marginTop: 7, width: '76%' },
+  shimmerList: { marginTop: 3 },
+  shimmerMeta: { borderRadius: 4, height: 11, marginTop: 8, width: '48%' },
+  shimmerTitle: { borderRadius: 4, height: 13, width: '66%' },
   stateText: { fontSize: rf(11), marginLeft: 7, marginTop: 19, textAlign: 'center' },
 });
 

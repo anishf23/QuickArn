@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useCustomAlert } from '../../components/CustomAlert';
+import { getProviderBidStats } from '../../services/bids';
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { getCachedUserProfile, type StoredUserProfile } from '../../services/firebaseUser';
@@ -55,10 +56,20 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
   const { colors } = useAppTheme();
   const { showAlert } = useCustomAlert();
   const [profile, setProfile] = useState<StoredUserProfile | null>(null);
+  const [bidStats, setBidStats] = useState({ accepted: 0, total: 0 });
 
   useEffect(() => {
     getCachedUserProfile().then(setProfile).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (profile?.role !== 'provider' || !profile.uid) {
+      setBidStats({ accepted: 0, total: 0 });
+      return;
+    }
+
+    getProviderBidStats(profile.uid).then(setBidStats).catch(() => {});
+  }, [profile?.role, profile?.uid]);
 
   const fullName = profile?.fullName?.trim() || 'Your Profile';
   const initials = fullName
@@ -91,9 +102,22 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
             <Text style={[styles.editText, { color: colors.primary }]}>Edit Profile</Text>
           </Pressable>
           {profile?.verificationStatus === 'pending' ? <Text style={styles.pendingMessage}>Verification pending — documents are under review.</Text> : null}
-          {profile?.verificationStatus === 'failed' ? <Text style={styles.failedMessage}>Verification failed — please submit your documents again.</Text> : null}
+          {profile?.verificationStatus === 'rejected' ? <Text style={styles.failedMessage}>Verification rejected — please submit your documents again.</Text> : null}
         </View>
       </View>
+
+      {profile?.role === 'provider' ? (
+        <View style={styles.bidStatsRow}>
+          <View style={[styles.bidStatCard, { backgroundColor: colors.background }]}>
+            <Text style={[styles.bidStatValue, { color: colors.primary }]}>{bidStats.total}</Text>
+            <Text style={[styles.bidStatLabel, { color: colors.textMuted }]}>Bids Placed</Text>
+          </View>
+          <View style={[styles.bidStatCard, { backgroundColor: colors.background }]}>
+            <Text style={[styles.bidStatValue, { color: '#16A34A' }]}>{bidStats.accepted}</Text>
+            <Text style={[styles.bidStatLabel, { color: colors.textMuted }]}>Accepted Bids</Text>
+          </View>
+        </View>
+      ) : null}
 
       {!isCustomer && (
         <View style={styles.verificationSection}>
@@ -107,7 +131,7 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
                 <Text style={[styles.verificationLabel, { color: colors.text }]}>{item.label}</Text>
                 <Text style={[styles.verificationDetail, { color: colors.textMuted }]}>{item.detail}</Text>
               </View>
-              <Text style={[styles.verifyText, { color: colors.primary }]}>{profile?.verificationStatus === 'pending' ? 'Pending' : profile?.verificationStatus === 'failed' ? 'Resubmit' : 'Verify'}</Text>
+              <Text style={[styles.verifyText, { color: colors.primary }]}>{profile?.verificationStatus === 'pending' ? 'Pending' : profile?.verificationStatus === 'rejected' ? 'Resubmit' : 'Verify'}</Text>
               <Text style={[styles.verificationArrow, { color: colors.primary }]}>›</Text>
             </Pressable>
           ))}
@@ -173,6 +197,10 @@ const styles = StyleSheet.create({
   arrow: { fontSize: RFValue(26), fontWeight: '300', lineHeight: 23 },
   avatar: { alignItems: 'center', backgroundColor: '#E5E0FF', borderRadius: 41, height: 82, justifyContent: 'center', width: 82 },
   avatarInitials: { color: '#665C78', fontSize: 15, fontWeight: '700' },
+  bidStatCard: { alignItems: 'center', borderRadius: 10, flex: 1, paddingVertical: 12 },
+  bidStatLabel: { fontSize: RFValue(10), fontWeight: '600', marginTop: 3 },
+  bidStatsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 18, paddingTop: 2 },
+  bidStatValue: { fontSize: RFValue(19), fontWeight: '800' },
   editButton: { alignItems: 'center', borderRadius: 20, borderWidth: 1.5, marginTop: 10, paddingHorizontal: 18, paddingVertical: 8 },
   editText: { fontSize: RFValue(12), fontWeight: '700' },
   emptySkillsText: { fontSize: RFValue(10), marginTop: 2 },

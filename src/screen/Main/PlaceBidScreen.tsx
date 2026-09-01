@@ -1,22 +1,53 @@
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { useCustomAlert } from '../../components/CustomAlert';
+import { createBid } from '../../services/bids';
+import type { PostedJob } from '../../services/jobs';
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { hp, rf } from '../../utils/responsive';
 import PostJobHeader from './components/PostJobHeader';
 
 type PlaceBidScreenProps = {
+  job: PostedJob | null;
   onBack: () => void;
   onGoToChat: () => void;
   onGoHome: () => void;
 };
 
-function PlaceBidScreen({ onBack, onGoHome, onGoToChat }: PlaceBidScreenProps) {
+function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenProps) {
   const { colors } = useAppTheme();
-  const [amount, setAmount] = useState('200');
-  const [message, setMessage] = useState('I can complete this job on time.');
+  const { showAlert } = useCustomAlert();
+  const [amount, setAmount] = useState('');
+  const [message, setMessage] = useState('');
   const [isAccepted, setIsAccepted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [amountError, setAmountError] = useState('');
+
+  const submitBid = async () => {
+    const bidAmount = Number(amount);
+
+    if (!job) {
+      setAmountError('Job details are unavailable. Please return to the job and try again.');
+      return;
+    }
+    if (!Number.isFinite(bidAmount) || bidAmount < 100 || bidAmount > 10000) {
+      setAmountError('Enter a bid amount between ₹100 and ₹10,000.');
+      return;
+    }
+
+    setAmountError('');
+    setIsSubmitting(true);
+    try {
+      await createBid({ amount: bidAmount, job, message });
+      setIsAccepted(true);
+    } catch (error) {
+      showAlert('Unable to submit bid', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.card }]}>
@@ -27,12 +58,18 @@ function PlaceBidScreen({ onBack, onGoHome, onGoToChat }: PlaceBidScreenProps) {
         <TextInput
           keyboardType="numeric"
           value={amount}
-          onChangeText={setAmount}
+          onChangeText={value => {
+            setAmount(value);
+            if (amountError) {
+              setAmountError('');
+            }
+          }}
           placeholder="Enter amount"
           placeholderTextColor={colors.textMuted}
-          style={[styles.amountInput, { color: colors.text }]}
+          style={[styles.amountInput, { borderColor: amountError ? '#DC2626' : '#E0D6ED', color: colors.text }]}
         />
-        <Text style={[styles.hint, { color: colors.textMuted }]}>Min ₹100 - Max ₹1000</Text>
+        {amountError ? <Text style={styles.errorText}>{amountError}</Text> : null}
+        <Text style={[styles.hint, { color: colors.textMuted }]}>Min ₹100 - Max ₹10,000</Text>
 
         <Text style={[styles.label, styles.messageLabel, { color: colors.text }]}>ADD MESSAGE (OPTIONAL)</Text>
         <TextInput
@@ -47,8 +84,8 @@ function PlaceBidScreen({ onBack, onGoHome, onGoToChat }: PlaceBidScreenProps) {
       </View>
 
       <View style={styles.footer}>
-        <Pressable accessibilityRole="button" onPress={() => setIsAccepted(true)} style={[styles.submitButton, { backgroundColor: colors.primary }]}>
-          <Text style={styles.submitText}>Submit Bid</Text>
+        <Pressable accessibilityRole="button" disabled={isSubmitting} onPress={submitBid} style={[styles.submitButton, { backgroundColor: colors.primary, opacity: isSubmitting ? 0.7 : 1 }]}>
+          <Text style={styles.submitText}>{isSubmitting ? 'Submitting...' : 'Submit Bid'}</Text>
         </Pressable>
         <Text style={[styles.footerHint, { color: colors.textMuted }]}>ⓘ  You will be notified if your bid is accepted.</Text>
       </View>
@@ -56,19 +93,19 @@ function PlaceBidScreen({ onBack, onGoHome, onGoToChat }: PlaceBidScreenProps) {
       <Modal animationType="fade" transparent visible={isAccepted} onRequestClose={() => setIsAccepted(false)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalHeaderTitle, { color: colors.primary }]}>Bid Submited</Text>
+            <Text style={[styles.modalHeaderTitle, { color: colors.primary }]}>Bid Submitted</Text>
             <View style={styles.successHalo}>
               <View style={styles.successCircle}><Text style={styles.checkIcon}>✓</Text></View>
             </View>
-            <Text style={[styles.successTitle, { color: colors.text }]}>Congratulations!</Text>
-            <Text style={[styles.successMessage, { color: colors.textMuted }]}>Your bid has been accepted.</Text>
+            <Text style={[styles.successTitle, { color: colors.text }]}>Bid submitted!</Text>
+            <Text style={[styles.successMessage, { color: colors.textMuted }]}>The job owner will be notified of your bid.</Text>
 
             <View style={styles.jobPreview}>
-              <View>
-                <Text style={[styles.previewTitle, { color: colors.text }]}>Need Delivery Boy</Text>
-                <Text style={[styles.previewLocation, { color: colors.textMuted }]}>⌖  Paldi, Ahmedabad</Text>
+              <View style={styles.previewDetails}>
+                <Text numberOfLines={2} style={[styles.previewTitle, { color: colors.text }]}>{job?.title || 'Job'}</Text>
+                <Text style={[styles.previewLocation, { color: colors.textMuted }]} numberOfLines={1}>⌖  {job?.pickupDetails.address || 'Location unavailable'}</Text>
               </View>
-              <Text style={[styles.previewPrice, { color: colors.primary }]}>₹{amount || '200'}</Text>
+              <Text style={[styles.previewPrice, { color: colors.primary }]}>₹{amount}</Text>
             </View>
 
             <Pressable accessibilityRole="button" onPress={onGoHome} style={[styles.modalPrimaryButton, { backgroundColor: colors.primary }]}>
@@ -87,6 +124,7 @@ function PlaceBidScreen({ onBack, onGoHome, onGoToChat }: PlaceBidScreenProps) {
 const styles = StyleSheet.create({
   amountInput: { borderColor: '#E0D6ED', borderRadius: 6, borderWidth: 1, fontSize: rf(13), fontWeight: '700', height: 43, paddingHorizontal: 12 },
   content: { flex: 1, paddingHorizontal: 11, paddingTop: 23 },
+  errorText: { color: '#DC2626', fontSize: rf(10), fontWeight: '600', marginTop: 5 },
   footer: { paddingBottom: hp(2), paddingHorizontal: 11 },
   footerHint: { fontSize: rf(9), marginTop: 10, textAlign: 'center' },
   hint: { fontSize: rf(9), fontWeight: '600', marginTop: 6 },
@@ -102,9 +140,10 @@ const styles = StyleSheet.create({
   modalPrimaryText: { color: '#FFFFFF', fontSize: rf(11), fontWeight: '800' },
   modalSecondaryButton: { alignItems: 'center', borderRadius: 6, borderWidth: 2, height: 39, justifyContent: 'center', marginTop: 10 },
   modalSecondaryText: { fontSize: rf(11), fontWeight: '800' },
-  jobPreview: { backgroundColor: '#FFFFFF', borderRadius: 9, elevation: 2, flexDirection: 'row', justifyContent: 'space-between', marginTop: 29, padding: 13, shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 5 },
+  jobPreview: { alignItems: 'flex-start', backgroundColor: '#FFFFFF', borderRadius: 9, elevation: 2, flexDirection: 'row', marginTop: 29, padding: 13, shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 5 },
+  previewDetails: { flex: 1, minWidth: 0, paddingRight: 10 },
   previewLocation: { fontSize: rf(9), marginTop: 5 },
-  previewPrice: { fontSize: rf(16), fontWeight: '800' },
+  previewPrice: { flexShrink: 0, fontSize: rf(16), fontWeight: '800' },
   previewTitle: { fontSize: rf(14), fontWeight: '800' },
   successCircle: { alignItems: 'center', backgroundColor: '#00E6B1', borderRadius: 50, elevation: 5, height: 100, justifyContent: 'center', shadowColor: '#009879', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.25, shadowRadius: 8, width: 100 },
   successHalo: { alignItems: 'center', alignSelf: 'center', backgroundColor: '#D1FFF4', borderRadius: 75, height: 150, justifyContent: 'center', marginTop: 18, width: 150 },

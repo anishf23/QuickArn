@@ -1,6 +1,9 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { getAuth } from '@react-native-firebase/auth';
 import { useCustomAlert } from '../../components/CustomAlert';
+import { getJobBids, type JobBid } from '../../services/bids';
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import type { PostedJob } from '../../services/jobs';
@@ -10,6 +13,9 @@ import PostJobHeader from './components/PostJobHeader';
 type JobDetailsScreenProps = {
   job?: PostedJob | null;
   isOwner?: boolean;
+  role?: string;
+  isOnline?: boolean;
+  verificationStatus?: string;
   onBack: () => void;
   onCloseJob?: () => void;
   onEditJob?: () => void;
@@ -20,7 +26,7 @@ const formatJobDateTime = (date: Date) => date.toLocaleString('en-IN', {
   day: '2-digit', hour: '2-digit', minute: '2-digit', month: 'short', year: 'numeric',
 });
 
-function JobDetailsScreen({ job, isOwner = false, onBack, onCloseJob, onEditJob, onPlaceBid }: JobDetailsScreenProps) {
+function JobDetailsScreen({ job, isOwner = false, role, isOnline = false, verificationStatus, onBack, onCloseJob, onEditJob, onPlaceBid }: JobDetailsScreenProps) {
   const { colors } = useAppTheme();
   const { showAlert } = useCustomAlert();
   const title = job?.title ?? 'Need Delivery Boy for Documents';
@@ -28,6 +34,37 @@ function JobDetailsScreen({ job, isOwner = false, onBack, onCloseJob, onEditJob,
   const budget = job ? `₹${job.budget}${job.budgetType === 'hourly' ? ' / hour' : ''}` : '₹200';
   const pickupAddress = job ? [job.pickupDetails.address, job.pickupDetails.nearbyLocation].filter(Boolean).join(', ') : 'Paldi, Ahmedabad';
   const postedBy = job?.pickupDetails.name || 'Ravi Patel';
+  const currentUserId = getAuth().currentUser?.uid;
+  const hasAlreadyBid = Boolean(currentUserId && job?.bidderIds?.includes(currentUserId));
+  const canPlaceBid = role === 'provider' && verificationStatus === 'accepted' && isOnline;
+  const [bids, setBids] = useState<JobBid[]>([]);
+  const [isLoadingBids, setIsLoadingBids] = useState(Boolean(job));
+  const [bidsError, setBidsError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const jobId = job?.jobId || job?.id;
+    if (!jobId) {
+      setBids([]);
+      setBidsError('');
+      setIsLoadingBids(false);
+      return () => { isMounted = false; };
+    }
+
+    setIsLoadingBids(true);
+    setBidsError('');
+    getJobBids(jobId)
+      .then(result => { if (isMounted) setBids(result); })
+      .catch(error => {
+        if (isMounted) {
+          setBids([]);
+          setBidsError(error instanceof Error ? error.message : 'Unable to load bid history.');
+        }
+      })
+      .finally(() => { if (isMounted) setIsLoadingBids(false); });
+
+    return () => { isMounted = false; };
+  }, [job?.id, job?.jobId]);
   const confirmCloseJob = () => {
     showAlert(
       'Close Job',
@@ -107,7 +144,7 @@ function JobDetailsScreen({ job, isOwner = false, onBack, onCloseJob, onEditJob,
           </View>
         </View>
 
-        <View style={[styles.infoCard, styles.posterCard, { backgroundColor: colors.card }]}>
+        <View style={[styles.infoCard, styles.posterCard, { backgroundColor: colors.card }]}> 
           <View style={styles.posterAvatar}><Text style={styles.posterInitials}>RP</Text></View>
           <View>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Posted by</Text>
@@ -115,6 +152,28 @@ function JobDetailsScreen({ job, isOwner = false, onBack, onCloseJob, onEditJob,
             <Text style={[styles.rating, { color: colors.textMuted }]}>★  4.7 (24 Reviews)</Text>
           </View>
         </View>
+
+        {job ? (
+          <View style={[styles.card, styles.bidHistoryCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Bid History ({job.bidCount ?? bids.length})</Text>
+            {isLoadingBids ? (
+              <View style={styles.bidsLoading}><ActivityIndicator color={colors.primary} /></View>
+            ) : bidsError ? (
+              <Text style={styles.bidsErrorText}>Unable to load bid history. Please check your internet connection and Firestore rules.</Text>
+            ) : bids.length === 0 ? (
+              <Text style={[styles.emptyBidsText, { color: colors.textMuted }]}>No bids have been placed yet.</Text>
+            ) : bids.map(bid => (
+              <View key={bid.bidId} style={styles.bidRow}>
+                <View style={styles.bidderCopy}>
+                  <Text style={[styles.bidderName, { color: colors.text }]}>{bid.bidderName}</Text>
+                  {bid.bidMessage ? <Text numberOfLines={2} style={[styles.bidMessage, { color: colors.textMuted }]}>{bid.bidMessage}</Text> : null}
+                  <Text style={[styles.bidDate, { color: colors.textMuted }]}>{bid.createdAt ? bid.createdAt.toLocaleString('en-IN', { day: '2-digit', hour: '2-digit', minute: '2-digit', month: 'short', year: 'numeric' }) : 'Just now'} · {bid.status}</Text>
+                </View>
+                <Text style={[styles.bidAmount, { color: colors.primary }]}>₹{bid.bidAmount}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
 
       {isOwner ? (
@@ -127,8 +186,14 @@ function JobDetailsScreen({ job, isOwner = false, onBack, onCloseJob, onEditJob,
           </Pressable>
         </View>
       ) : (
-        <View style={[styles.footer, { backgroundColor: colors.card }]}>
-          <Pressable accessibilityRole="button" onPress={onPlaceBid} style={[styles.bidButton, { backgroundColor: colors.primary }]}><Text style={styles.bidText}>Place Bid</Text></Pressable>
+        <View style={[styles.footer, { backgroundColor: colors.card }]}> 
+          {!canPlaceBid ? (
+            <View style={styles.customerBidNotice}><Text style={[styles.customerBidNoticeText, { color: colors.textMuted }]}>{role !== 'provider' ? 'Only verified service providers can place bids.' : verificationStatus !== 'accepted' ? 'Your provider verification must be accepted before you can place bids.' : 'Go online to place a bid.'}</Text></View>
+          ) : hasAlreadyBid ? (
+            <View style={styles.alreadyBidFooter}><Text style={[styles.alreadyBidFooterText, { color: colors.primary }]}>✓ You have already placed a bid</Text></View>
+          ) : (
+            <Pressable accessibilityRole="button" onPress={onPlaceBid} style={[styles.bidButton, { backgroundColor: colors.primary }]}><Text style={styles.bidText}>Place Bid</Text></Pressable>
+          )}
         </View>
       )}
     </View>
@@ -136,14 +201,28 @@ function JobDetailsScreen({ job, isOwner = false, onBack, onCloseJob, onEditJob,
 }
 
 const styles = StyleSheet.create({
+  alreadyBidFooter: { alignItems: 'center', backgroundColor: '#EDE9FE', borderRadius: 7, height: 45, justifyContent: 'center' },
+  alreadyBidFooterText: { fontSize: rf(12), fontWeight: '800' },
+  bidAmount: { fontSize: rf(14), fontWeight: '800', marginLeft: 10 },
   bidButton: { alignItems: 'center', borderRadius: 7, elevation: 4, height: 45, justifyContent: 'center', shadowColor: '#4E00A5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 },
+  bidDate: { fontSize: rf(9), marginTop: 5, textTransform: 'capitalize' },
+  bidHistoryCard: { paddingBottom: 4 },
+  bidMessage: { fontSize: rf(10), lineHeight: rf(14), marginTop: 4 },
+  bidRow: { alignItems: 'flex-start', borderTopColor: '#E5E7EB', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', paddingVertical: 12 },
   bidText: { color: '#FFFFFF', fontSize: rf(13), fontWeight: '800' },
+  bidderCopy: { flex: 1 },
+  bidderName: { fontSize: rf(12), fontWeight: '800' },
+  bidsLoading: { alignItems: 'center', justifyContent: 'center', minHeight: 62 },
+  bidsErrorText: { color: '#DC2626', fontSize: rf(10), lineHeight: rf(14), marginVertical: 14 },
   calendarIcon: { fontSize: rf(20), fontWeight: '800' },
   card: { borderRadius: 12, elevation: 2, marginTop: 12, padding: 14, shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.09, shadowRadius: 5 },
   cardTitle: { fontSize: rf(11), fontWeight: '800' },
   content: { paddingBottom: 16, paddingHorizontal: 8, paddingTop: 7 },
+  customerBidNotice: { alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 7, minHeight: 45, justifyContent: 'center', paddingHorizontal: 12 },
+  customerBidNoticeText: { fontSize: rf(11), fontWeight: '700', textAlign: 'center' },
   dateText: { fontSize: rf(10), marginTop: 3 },
   description: { fontSize: rf(12), lineHeight: rf(19), marginTop: 10 },
+  emptyBidsText: { fontSize: rf(10), marginVertical: 14 },
   footer: { paddingHorizontal: 5, paddingVertical: 7 },
   editButton: { backgroundColor: 'transparent', borderWidth: 1.2 },
   editButtonText: { fontSize: rf(13), fontWeight: '800' },

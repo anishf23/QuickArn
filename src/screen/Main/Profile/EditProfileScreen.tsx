@@ -172,7 +172,7 @@ function EditProfileScreen({ onBack, onVerification }: EditProfileScreenProps) {
                 <Text style={[styles.verificationTitle, { color: colors.text }]}>{verification.type}</Text>
                 {verification.frontUrl ? <Pressable onPress={() => Linking.openURL(verification.frontUrl).catch(() => {})}><Text style={[styles.documentLink, { color: colors.primary }]}>View Front Document</Text></Pressable> : null}
                 {verification.backUrl ? <Pressable onPress={() => Linking.openURL(verification.backUrl).catch(() => {})}><Text style={[styles.documentLink, { color: colors.primary }]}>View Back Document</Text></Pressable> : null}
-                <Text style={[styles.verificationHint, { color: verification.status === 'failed' ? '#DC2626' : colors.textMuted }]}>{verification.status === 'pending' ? 'Documents are pending review and cannot be changed.' : verification.status === 'failed' ? 'Verification failed. Return to Profile and choose Resubmit.' : 'Verification documents are read-only here.'}</Text>
+                <Text style={[styles.verificationHint, { color: verification.status === 'rejected' ? '#DC2626' : colors.textMuted }]}>{verification.status === 'pending' ? 'Documents are pending review and cannot be changed.' : verification.status === 'rejected' ? 'Verification rejected. Return to Profile and choose Resubmit.' : 'Verification documents are read-only here.'}</Text>
               </Pressable>
             </>
           ) : null}
