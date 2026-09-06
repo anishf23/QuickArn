@@ -155,10 +155,10 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
                   <Pressable
                     accessibilityLabel="Toggle online status"
                     accessibilityRole="switch"
-                    accessibilityState={{ checked: availabilityEnabled, disabled: !isProviderVerified }}
-                    disabled={!isProviderVerified}
+                    accessibilityState={{ checked: availabilityEnabled, disabled: role !== 'customer' && !isProviderVerified }}
+                    disabled={role !== 'customer' && !isProviderVerified}
                     onPress={onAvailabilityPress}
-                    style={[styles.switchTrack, availabilityEnabled ? styles.switchTrackOn : styles.switchTrackOff, !isProviderVerified && styles.switchTrackDisabled]}
+                    style={[styles.switchTrack, availabilityEnabled ? styles.switchTrackOn : styles.switchTrackOff, role !== 'customer' && !isProviderVerified && styles.switchTrackDisabled]}
                   >
                     <View style={[styles.switchKnob, availabilityEnabled ? styles.switchKnobOn : styles.switchKnobOff]} />
                   </Pressable>

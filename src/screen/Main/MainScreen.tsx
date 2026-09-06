@@ -297,6 +297,10 @@ function MainScreen({ navigation, route }: Props) {
         role={userRole}
         verificationStatus={verificationStatus}
         onAvailabilityPress={async () => {
+          if (userRole === 'customer') {
+            setIsVerifyingProfile(true);
+            return;
+          }
           if (userRole !== 'provider' || verificationStatus !== 'accepted') {
             return;
           }
