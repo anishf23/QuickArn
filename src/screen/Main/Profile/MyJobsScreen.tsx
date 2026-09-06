@@ -5,7 +5,7 @@ import { getAuth } from '@react-native-firebase/auth';
 import { useAppTheme } from '../../../theme/AppTheme';
 import Shimmer from '../../../components/Shimmer';
 import { LocalizedText as Text } from '../../../localization/AppLocalization';
-import { getMyJobs, type PostedJob } from '../../../services/jobs';
+import { getCachedMyJobs, getMyJobs, type PostedJob } from '../../../services/jobs';
 import { rf } from '../../../utils/responsive';
 import PostJobHeader from '../components/PostJobHeader';
 
@@ -28,13 +28,21 @@ const getDisplayStatus = (job: PostedJob, currentTime: number) => {
 
 function MyJobsScreen({ onBack, onOpenJob }: MyJobsScreenProps) {
   const { colors } = useAppTheme();
-  const [jobs, setJobs] = useState<PostedJob[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedJobs = getCachedMyJobs();
+  const [jobs, setJobs] = useState<PostedJob[]>(() => cachedJobs ?? []);
+  const [isLoading, setIsLoading] = useState(() => !cachedJobs);
   const [error, setError] = useState('');
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const currentUserId = getAuth().currentUser?.uid;
 
   useEffect(() => {
+    const storedJobs = getCachedMyJobs();
+    if (storedJobs && storedJobs.length > 0) {
+      setJobs(storedJobs);
+      setIsLoading(false);
+      return;
+    }
+
     getMyJobs()
       .then(setJobs)
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Unable to load your jobs.'))

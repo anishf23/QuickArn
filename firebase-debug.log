@@ -1,0 +1,23 @@
+[debug] [2026-09-06T11:03:47.265Z] ----------------------------------------------------------------------
+[debug] [2026-09-06T11:03:47.269Z] Command:       /home/anish/.nvm/versions/node/v22.22.2/bin/node /home/anish/.npm/_npx/7750544ccf494d8b/node_modules/.bin/firebase deploy --only functions --project quickarn
+[debug] [2026-09-06T11:03:47.270Z] CLI Version:   15.29.0
+[debug] [2026-09-06T11:03:47.271Z] Platform:      linux
+[debug] [2026-09-06T11:03:47.271Z] Node Version:  v22.22.2
+[debug] [2026-09-06T11:03:47.276Z] Detected Agent: codex_cli
+[debug] [2026-09-06T11:03:47.277Z] Time:          Sun Sep 06 2026 16:33:47 GMT+0530 (India Standard Time)
+[debug] [2026-09-06T11:03:47.278Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-06T11:03:47.302Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-09-06T11:03:49.481Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-09-06T11:03:49.735Z] Error: Could not load the default credentials. Browse to https://cloud.google.com/docs/authentication/getting-started for more information.
+    at GoogleAuth.getApplicationDefaultAsync (/home/anish/.npm/_npx/7750544ccf494d8b/node_modules/google-auth-library/build/src/auth/googleauth.js:287:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async GoogleAuth._GoogleAuth_determineClient (/home/anish/.npm/_npx/7750544ccf494d8b/node_modules/google-auth-library/build/src/auth/googleauth.js:834:32)
+    at async GoogleAuth.getClient (/home/anish/.npm/_npx/7750544ccf494d8b/node_modules/google-auth-library/build/src/auth/googleauth.js:698:20)
+    at async GoogleAuth.getAccessToken (/home/anish/.npm/_npx/7750544ccf494d8b/node_modules/google-auth-library/build/src/auth/googleauth.js:722:24)
+    at async autoAuth (/home/anish/.npm/_npx/7750544ccf494d8b/node_modules/firebase-tools/lib/requireAuth.js:38:19)
+    at async requireAuth (/home/anish/.npm/_npx/7750544ccf494d8b/node_modules/firebase-tools/lib/requireAuth.js:100:20)
+    at async requirePermissions (/home/anish/.npm/_npx/7750544ccf494d8b/node_modules/firebase-tools/lib/requirePermissions.js:12:5)
+    at async /home/anish/.npm/_npx/7750544ccf494d8b/node_modules/firebase-tools/lib/command.js:278:17
+[error] 
+[error] Error: Failed to authenticate, have you run firebase login?

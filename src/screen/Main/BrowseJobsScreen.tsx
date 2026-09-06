@@ -6,7 +6,7 @@ import { collection, getDocs, getFirestore } from '@react-native-firebase/firest
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import Shimmer from '../../components/Shimmer';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
-import { getNearbyJobs, type NearbyJob } from '../../services/jobs';
+import { getCachedNearbyJobs, getNearbyJobs, type NearbyJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
 import PostJobHeader from './components/PostJobHeader';
 
@@ -28,8 +28,9 @@ const formatDistance = (distanceKm: number) => distanceKm < 1
 
 function BrowseJobsScreen({ latitude, longitude, onBack, onJobPress }: BrowseJobsScreenProps) {
   const { colors, isDark } = useAppTheme();
-  const [jobs, setJobs] = useState<NearbyJob[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedJobs = getCachedNearbyJobs(latitude, longitude, 50);
+  const [jobs, setJobs] = useState<NearbyJob[]>(() => cachedJobs ?? []);
+  const [isLoading, setIsLoading] = useState(() => !cachedJobs);
   const [message, setMessage] = useState('');
   const [searchText, setSearchText] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
@@ -65,6 +66,14 @@ function BrowseJobsScreen({ latitude, longitude, onBack, onJobPress }: BrowseJob
       setJobs([]);
       setMessage('Choose your location to browse nearby jobs.');
       setIsLoading(false);
+      return () => { isMounted = false; };
+    }
+
+    const storedJobs = getCachedNearbyJobs(latitude, longitude, 50);
+    if (storedJobs && storedJobs.length > 0) {
+      setJobs(storedJobs);
+      setIsLoading(false);
+      setMessage('');
       return () => { isMounted = false; };
     }
 

@@ -65,13 +65,12 @@ function MainScreen({ navigation, route }: Props) {
   const [locationCoordinates, setLocationCoordinates] = useState<{ latitude: number | null; longitude: number | null }>({ latitude: null, longitude: null });
   const [userRole, setUserRole] = useState('');
   const [verificationStatus, setVerificationStatus] = useState('');
-  const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
     getCachedUserProfile().then(profile => {
       setUserRole(profile?.role ?? '');
       setVerificationStatus(profile?.verificationStatus ?? '');
-      setIsVerified(Boolean(profile?.isVerified));
+      setIsOnline(Boolean(profile?.isOnline));
       if (typeof profile?.latitude === 'number' && typeof profile.longitude === 'number') {
         setLocationCoordinates({ latitude: profile.latitude, longitude: profile.longitude });
       }
@@ -80,7 +79,7 @@ function MainScreen({ navigation, route }: Props) {
 
   useEffect(() => subscribeToCurrentUserProfile(profile => {
     setVerificationStatus(profile?.verificationStatus ?? '');
-    setIsVerified(Boolean(profile?.isVerified));
+    setIsOnline(Boolean(profile?.isOnline));
   }), []);
 
   useEffect(() => {
@@ -297,17 +296,17 @@ function MainScreen({ navigation, route }: Props) {
         longitude={locationCoordinates.longitude}
         role={userRole}
         verificationStatus={verificationStatus}
-        onAvailabilityPress={() => {
-          if (isVerified || verificationStatus === 'verified') {
-            setIsOnline(current => {
-              updateCurrentUser({ isOnline: !current }).catch(() => {});
-              return !current;
-            });
+        onAvailabilityPress={async () => {
+          if (userRole !== 'provider' || verificationStatus !== 'accepted') {
             return;
           }
 
-          if (verificationStatus !== 'pending') {
-            setIsVerifyingProfile(true);
+          const nextOnlineStatus = !isOnline;
+          try {
+            await updateCurrentUser({ isOnline: nextOnlineStatus });
+            setIsOnline(nextOnlineStatus);
+          } catch {
+            // Keep the current switch value when the Firestore update fails.
           }
         }}
         onJobPress={job => {

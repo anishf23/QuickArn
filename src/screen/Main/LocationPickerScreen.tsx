@@ -108,26 +108,32 @@ function LocationPickerScreen({ recentAddresses, savedAddresses, onBack, onSaveA
       return undefined;
     }
 
-    const controller = new AbortController();
+    let isCurrentSearch = true;
     const searchTimer = setTimeout(async () => {
       setIsSearching(true);
       try {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(normalizedQuery)}`,
-          { headers: nominatimHeaders, signal: controller.signal },
+          { headers: nominatimHeaders },
         );
-        setResults((await response.json()) as NominatimResult[]);
+        if (isCurrentSearch) {
+          setResults((await response.json()) as NominatimResult[]);
+        }
       } catch (error) {
         if ((error as { name?: string }).name !== 'AbortError') {
-          setResults([]);
+          if (isCurrentSearch) {
+            setResults([]);
+          }
         }
       } finally {
-        setIsSearching(false);
+        if (isCurrentSearch) {
+          setIsSearching(false);
+        }
       }
     }, 400);
 
     return () => {
-      controller.abort();
+      isCurrentSearch = false;
       clearTimeout(searchTimer);
     };
   }, [query]);

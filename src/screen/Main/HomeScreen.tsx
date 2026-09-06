@@ -6,7 +6,7 @@ import { getAuth } from '@react-native-firebase/auth';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import Shimmer from '../../components/Shimmer';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
-import { getNearbyJobs, type NearbyJob } from '../../services/jobs';
+import { getCachedNearbyJobs, getNearbyJobs, type NearbyJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
 
 type HomeScreenProps = {
@@ -41,14 +41,15 @@ function PersonAvatar({ onPress }: { onPress: () => void }) {
 
 function HomeScreen({ address, isOnline, latitude, longitude, role, verificationStatus, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onProfilePress, onViewAll, onWalletPress }: HomeScreenProps) {
   const { colors } = useAppTheme();
-  const [nearbyJobs, setNearbyJobs] = useState<NearbyJob[]>([]);
-  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+  const cachedJobs = getCachedNearbyJobs(latitude, longitude, 20);
+  const [nearbyJobs, setNearbyJobs] = useState<NearbyJob[]>(() => cachedJobs ?? []);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(() => !cachedJobs);
   const [jobsMessage, setJobsMessage] = useState('');
   const [visibleJobCount, setVisibleJobCount] = useState(20);
   const fullAddress = address?.trim() || 'Choose your location';
   const areaName = fullAddress.split(',')[0]?.trim() || 'Select Location';
-  const isVerificationPending = verificationStatus === 'pending';
-  const availabilityEnabled = isOnline && !isVerificationPending;
+  const isProviderVerified = role === 'provider' && verificationStatus === 'accepted';
+  const availabilityEnabled = isOnline && isProviderVerified;
   const currentUserId = getAuth().currentUser?.uid;
 
   useEffect(() => {
@@ -61,6 +62,14 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
       return () => {
         isMounted = false;
       };
+    }
+
+    const storedJobs = getCachedNearbyJobs(latitude, longitude, 20);
+    if (storedJobs && storedJobs.length > 0) {
+      setNearbyJobs(storedJobs);
+      setIsLoadingJobs(false);
+      setJobsMessage('');
+      return () => { isMounted = false; };
     }
 
     setIsLoadingJobs(true);
@@ -146,17 +155,17 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
                   <Pressable
                     accessibilityLabel="Toggle online status"
                     accessibilityRole="switch"
-                    accessibilityState={{ checked: availabilityEnabled, disabled: isVerificationPending }}
-                    disabled={isVerificationPending}
+                    accessibilityState={{ checked: availabilityEnabled, disabled: !isProviderVerified }}
+                    disabled={!isProviderVerified}
                     onPress={onAvailabilityPress}
-                    style={[styles.switchTrack, availabilityEnabled ? styles.switchTrackOn : styles.switchTrackOff, isVerificationPending && styles.switchTrackDisabled]}
+                    style={[styles.switchTrack, availabilityEnabled ? styles.switchTrackOn : styles.switchTrackOff, !isProviderVerified && styles.switchTrackDisabled]}
                   >
                     <View style={[styles.switchKnob, availabilityEnabled ? styles.switchKnobOn : styles.switchKnobOff]} />
                   </Pressable>
                 </View>
-                {verificationStatus === 'pending' ? <Text style={styles.verificationMessage}>Your verification is pending. You can go online after approval.</Text> : null}
+                {!isProviderVerified ? <Text style={styles.verificationMessage}>{role !== 'provider' ? 'Only verified service providers can go online.' : verificationStatus === 'pending' ? 'Your verification is pending. You can go online after approval.' : 'Your verification must be accepted before you can go online.'}</Text> : null}
 
-                {role !== 'customer' ? (
+                {isProviderVerified ? (
                   <View style={styles.statsRow}>
                     {stats.map(stat => (
                       <View key={stat.label} style={[styles.statCard, { backgroundColor: colors.card }]}>

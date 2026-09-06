@@ -1,5 +1,5 @@
 import { getAuth } from '@react-native-firebase/auth';
-import { collection, doc, endAt, getDocs, getFirestore, orderBy, query, serverTimestamp, setDoc, startAt, Timestamp, where } from '@react-native-firebase/firestore';
+import { collection, doc, endAt, getDoc, getDocs, getFirestore, orderBy, query, serverTimestamp, setDoc, startAt, Timestamp, where } from '@react-native-firebase/firestore';
 
 import { ensureInternetConnection } from './internetCheck';
 
@@ -47,6 +47,30 @@ export type NearbyJob = PostedJob & {
 type TimestampValue = { toDate?: () => Date };
 
 const GEOHASH_CHARACTERS = '0123456789bcdefghjkmnpqrstuvwxyz';
+const nearbyJobsCache = new Map<string, NearbyJob[]>();
+const myJobsCache = new Map<string, PostedJob[]>();
+
+const getNearbyCacheKey = (latitude: number, longitude: number, radiusKm: number) => `${latitude.toFixed(4)}:${longitude.toFixed(4)}:${radiusKm}`;
+
+/** Returns loaded non-empty nearby jobs without making a Firestore request. */
+export function getCachedNearbyJobs(latitude: number | null, longitude: number | null, radiusKm = 20) {
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return undefined;
+  }
+  return nearbyJobsCache.get(getNearbyCacheKey(latitude, longitude, radiusKm));
+}
+
+/** Returns loaded non-empty current-user jobs without making a Firestore request. */
+export function getCachedMyJobs() {
+  const uid = getAuth().currentUser?.uid;
+  return uid ? myJobsCache.get(uid) : undefined;
+}
+
+/** Clears job lists after a job or bid changes. */
+export function invalidateJobCaches() {
+  nearbyJobsCache.clear();
+  myJobsCache.clear();
+}
 
 /** Encodes a coordinate for Firestore geohash range queries. */
 const createGeohash = (latitude: number | null, longitude: number | null, precision = 9): string | null => {
@@ -234,6 +258,7 @@ export async function createJob(input: CreateJobInput) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  invalidateJobCaches();
 
   return reference.id;
 }
@@ -265,6 +290,7 @@ export async function updateJob(jobId: string, input: CreateJobInput) {
     dropDetails: input.dropDetails,
     updatedAt: serverTimestamp(),
   }, { merge: true });
+  invalidateJobCaches();
 
   return jobId;
 }
@@ -283,10 +309,16 @@ export async function closeJob(jobId: string) {
     closedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
+  invalidateJobCaches();
 }
 
 /** Loads open jobs within a radius of the supplied pickup-location coordinates. */
 export async function getNearbyJobs(latitude: number, longitude: number, radiusKm = 20): Promise<NearbyJob[]> {
+  const cacheKey = getNearbyCacheKey(latitude, longitude, radiusKm);
+  const cachedJobs = nearbyJobsCache.get(cacheKey);
+  if (cachedJobs && cachedJobs.length > 0) {
+    return cachedJobs;
+  }
   await ensureInternetConnection();
 
   const user = getAuth().currentUser;
@@ -309,7 +341,7 @@ export async function getNearbyJobs(latitude: number, longitude: number, radiusK
   snapshots.forEach(snapshot => snapshot.docs.forEach(document => uniqueDocuments.set(document.id, document)));
   const now = Date.now();
 
-  return [...uniqueDocuments.values()]
+  const jobs = [...uniqueDocuments.values()]
     .map(mapJobDocument)
     .filter(job => {
       const pickupLatitude = job.pickupDetails?.latitude;
@@ -325,20 +357,45 @@ export async function getNearbyJobs(latitude: number, longitude: number, radiusK
     }))
     .filter(job => job.distanceKm <= radiusKm)
     .sort((first, second) => first.distanceKm - second.distanceKm);
+  if (jobs.length > 0) {
+    nearbyJobsCache.set(cacheKey, jobs);
+  }
+  return jobs;
 }
 
 /** Loads jobs posted by the currently authenticated user. */
 export async function getMyJobs(): Promise<PostedJob[]> {
-  await ensureInternetConnection();
-
   const user = getAuth().currentUser;
   if (!user) {
     throw new Error('Your login session has expired. Please sign in again.');
   }
+  const cachedJobs = myJobsCache.get(user.uid);
+  if (cachedJobs && cachedJobs.length > 0) {
+    return cachedJobs;
+  }
+  await ensureInternetConnection();
 
   const jobsQuery = query(collection(getFirestore(), 'jobs'), where('ownerId', '==', user.uid));
   const snapshot = await getDocs(jobsQuery);
 
-  return snapshot.docs.map(mapJobDocument)
+  const jobs = snapshot.docs.map(mapJobDocument)
     .sort((first, second) => (second.createdAt?.getTime() ?? 0) - (first.createdAt?.getTime() ?? 0));
+  if (jobs.length > 0) {
+    myJobsCache.set(user.uid, jobs);
+  }
+  return jobs;
+}
+
+/** Loads specific job documents by ID for related data such as bid history. */
+export async function getJobsByIds(jobIds: string[]): Promise<PostedJob[]> {
+  await ensureInternetConnection();
+  const uniqueIds = [...new Set(jobIds.filter(Boolean))];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const snapshots = await Promise.all(uniqueIds.map(jobId => getDoc(doc(getFirestore(), 'jobs', jobId))));
+  return snapshots
+    .filter(snapshot => snapshot.exists())
+    .map(snapshot => mapJobDocument({ id: snapshot.id, data: () => snapshot.data() }));
 }

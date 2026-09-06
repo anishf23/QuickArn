@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { useCustomAlert } from '../../../components/CustomAlert';
+import { getMyWallet, type WalletTransaction } from '../../../services/wallet';
+import { addMoneyWithRazorpay, getWalletTopUpQuote } from '../../../services/walletPayments';
 import { useAppTheme } from '../../../theme/AppTheme';
 import { LocalizedText as Text } from '../../../localization/AppLocalization';
 import { rf } from '../../../utils/responsive';
@@ -10,24 +13,47 @@ type MyWalletScreenProps = {
   onBack: () => void;
 };
 
-const transactions = [
-  { title: 'Job payment received', date: '25 May 2024', amount: '+₹200', positive: true },
-  { title: 'Withdrawal to bank', date: '20 May 2024', amount: '-₹1,500', positive: false },
-  { title: 'Job payment received', date: '18 May 2024', amount: '+₹300', positive: true },
-];
-
 function MyWalletScreen({ onBack }: MyWalletScreenProps) {
   const { colors } = useAppTheme();
+  const { showAlert } = useCustomAlert();
   const [isAddingMoney, setIsAddingMoney] = useState(false);
   const [amount, setAmount] = useState('');
-  const [balance, setBalance] = useState(2450);
+  const [amountError, setAmountError] = useState('');
+  const [balance, setBalance] = useState(0);
+  const [isPaying, setIsPaying] = useState(false);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const enteredAmount = Number(amount);
+  const quote = Number.isFinite(enteredAmount) && enteredAmount > 0 ? getWalletTopUpQuote(enteredAmount) : null;
 
-  const addMoney = () => {
-    const value = Number(amount);
-    if (value > 0) {
-      setBalance(current => current + value);
+  useEffect(() => {
+    getMyWallet().then(wallet => {
+      setBalance(wallet.balance);
+      setTransactions(wallet.transactions);
+    }).catch(() => {});
+  }, []);
+
+  const addMoney = async () => {
+    if (!Number.isFinite(enteredAmount) || enteredAmount < 10 || enteredAmount > 50_000) {
+      setAmountError('Enter an amount between ₹10 and ₹50,000.');
+      return;
+    }
+
+    setAmountError('');
+    setIsPaying(true);
+    try {
+      const result = await addMoneyWithRazorpay(enteredAmount);
+      setBalance(result.balance);
+      setTransactions(current => [{ amount: enteredAmount, createdAt: new Date(), id: result.transactionId, title: 'Wallet top-up', type: 'credit' }, ...current]);
       setAmount('');
       setIsAddingMoney(false);
+      showAlert('Money added', 'Your payment was verified and your wallet balance has been updated.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Payment could not be completed. Please try again.';
+      if (!/cancel/i.test(message)) {
+        showAlert('Unable to add money', message);
+      }
+    } finally {
+      setIsPaying(false);
     }
   };
 
@@ -50,14 +76,14 @@ function MyWalletScreen({ onBack }: MyWalletScreenProps) {
           <Text style={[styles.viewAll, { color: colors.primary }]}>View All</Text>
         </View>
         <View style={[styles.historyCard, { backgroundColor: colors.card }]}>
-          {transactions.map((transaction, index) => (
-            <View key={transaction.title + transaction.date} style={[styles.transaction, index < transactions.length - 1 && styles.divider]}>
-              <View style={[styles.transactionIcon, { backgroundColor: transaction.positive ? '#DCFBEA' : '#ECEEF0' }]}><Text style={[styles.transactionSymbol, { color: transaction.positive ? '#159B62' : colors.textMuted }]}>{transaction.positive ? '₹' : '▤'}</Text></View>
+          {transactions.length === 0 ? <Text style={[styles.emptyTransactions, { color: colors.textMuted }]}>No transactions yet.</Text> : transactions.map((transaction, index) => (
+            <View key={transaction.id} style={[styles.transaction, index < transactions.length - 1 && styles.divider]}>
+              <View style={[styles.transactionIcon, { backgroundColor: transaction.type === 'credit' ? '#DCFBEA' : '#ECEEF0' }]}><Text style={[styles.transactionSymbol, { color: transaction.type === 'credit' ? '#159B62' : colors.textMuted }]}>{transaction.type === 'credit' ? '₹' : '▤'}</Text></View>
               <View style={styles.transactionInfo}>
                 <Text style={[styles.transactionTitle, { color: colors.text }]}>{transaction.title}</Text>
-                <Text style={[styles.transactionDate, { color: colors.textMuted }]}>{transaction.date}</Text>
+                <Text style={[styles.transactionDate, { color: colors.textMuted }]}>{transaction.createdAt ? transaction.createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Just now'}</Text>
               </View>
-              <Text style={[styles.amount, { color: transaction.positive ? '#159B62' : colors.text }]}>{transaction.amount}</Text>
+              <Text style={[styles.amount, { color: transaction.type === 'credit' ? '#159B62' : colors.text }]}>{transaction.type === 'credit' ? '+' : '-'}₹{transaction.amount.toLocaleString('en-IN')}</Text>
             </View>
           ))}
         </View>
@@ -67,9 +93,16 @@ function MyWalletScreen({ onBack }: MyWalletScreenProps) {
         <View style={styles.modalBackdrop}>
           <View style={[styles.addMoneyModal, { backgroundColor: colors.card }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Add Money</Text>
-            <TextInput keyboardType="numeric" value={amount} onChangeText={setAmount} placeholder="Enter amount" placeholderTextColor={colors.textMuted} style={[styles.amountInput, { borderColor: colors.primary, color: colors.text }]} />
-            <Pressable accessibilityRole="button" onPress={addMoney} style={[styles.confirmButton, { backgroundColor: colors.primary }]}><Text style={styles.confirmText}>Add to Wallet</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => setIsAddingMoney(false)} style={styles.cancelButton}><Text style={[styles.cancelText, { color: colors.textMuted }]}>Cancel</Text></Pressable>
+            <TextInput keyboardType="numeric" value={amount} onChangeText={value => { setAmount(value); setAmountError(''); }} placeholder="Enter wallet credit amount" placeholderTextColor={colors.textMuted} style={[styles.amountInput, { borderColor: amountError ? '#DC2626' : colors.primary, color: colors.text }]} />
+            {amountError ? <Text style={styles.errorText}>{amountError}</Text> : null}
+            {quote ? <View style={styles.feeSummary}>
+              <View style={styles.feeRow}><Text style={[styles.feeLabel, { color: colors.textMuted }]}>Wallet credit</Text><Text style={[styles.feeValue, { color: colors.text }]}>₹{quote.walletCreditAmount.toFixed(2)}</Text></View>
+              <View style={styles.feeRow}><Text style={[styles.feeLabel, { color: colors.textMuted }]}>Gateway fee (2%)</Text><Text style={[styles.feeValue, { color: colors.text }]}>₹{quote.gatewayFee.toFixed(2)}</Text></View>
+              <View style={styles.feeRow}><Text style={[styles.feeLabel, { color: colors.textMuted }]}>GST on fee (18%)</Text><Text style={[styles.feeValue, { color: colors.text }]}>₹{quote.gstOnGatewayFee.toFixed(2)}</Text></View>
+              <View style={styles.feeRow}><Text style={[styles.feeTotal, { color: colors.text }]}>Total payable</Text><Text style={[styles.feeTotal, { color: colors.primary }]}>₹{quote.totalChargedAmount.toFixed(2)}</Text></View>
+            </View> : null}
+            <Pressable accessibilityRole="button" disabled={isPaying} onPress={addMoney} style={[styles.confirmButton, { backgroundColor: colors.primary, opacity: isPaying ? 0.7 : 1 }]}><Text style={styles.confirmText}>{isPaying ? 'Opening Razorpay...' : 'Pay with Razorpay'}</Text></Pressable>
+            <Pressable accessibilityRole="button" disabled={isPaying} onPress={() => setIsAddingMoney(false)} style={styles.cancelButton}><Text style={[styles.cancelText, { color: colors.textMuted }]}>Cancel</Text></Pressable>
           </View>
         </View>
       </Modal>
@@ -94,6 +127,13 @@ const styles = StyleSheet.create({
   confirmText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '800' },
   content: { flex: 1, paddingHorizontal: 12, paddingTop: 12 },
   divider: { borderBottomColor: '#E5E7EB', borderBottomWidth: StyleSheet.hairlineWidth },
+  emptyTransactions: { fontSize: rf(11), padding: 16, textAlign: 'center' },
+  errorText: { color: '#DC2626', fontSize: rf(10), fontWeight: '600', marginTop: 5 },
+  feeLabel: { fontSize: rf(10) },
+  feeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 7 },
+  feeSummary: { backgroundColor: '#F8F5FF', borderRadius: 8, marginTop: 12, padding: 11 },
+  feeTotal: { fontSize: rf(11), fontWeight: '800' },
+  feeValue: { fontSize: rf(10), fontWeight: '700' },
   historyCard: { borderRadius: 10, elevation: 2, marginTop: 12, overflow: 'hidden', shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
   historyHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 25 },
   historyTitle: { fontSize: rf(14), fontWeight: '800' },
