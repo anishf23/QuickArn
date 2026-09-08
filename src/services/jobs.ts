@@ -28,6 +28,8 @@ export type CreateJobInput = {
 };
 
 export type PostedJob = Omit<CreateJobInput, 'jobDateTime' | 'closeDateTime'> & {
+  agreedHours?: number;
+  agreedTotalAmount?: number;
   bidCount?: number;
   bidderIds?: string[];
   createdAt?: Date;
@@ -36,6 +38,7 @@ export type PostedJob = Omit<CreateJobInput, 'jobDateTime' | 'closeDateTime'> & 
   jobId: string;
   jobDateTime: Date;
   closeDateTime: Date;
+  completedAt?: Date;
   ownerId: string;
   status: string;
 };
@@ -209,6 +212,7 @@ type FirestoreJobDocument = {
 const mapJobDocument = (document: FirestoreJobDocument): PostedJob => {
   const data = document.data() as Omit<PostedJob, 'id' | 'jobId' | 'jobDateTime' | 'closeDateTime' | 'createdAt'> & {
     createdAt?: unknown;
+    completedAt?: unknown;
     jobDateTime?: unknown;
     closeDateTime?: unknown;
     jobId?: unknown;
@@ -220,6 +224,7 @@ const mapJobDocument = (document: FirestoreJobDocument): PostedJob => {
     jobId: typeof data.jobId === 'string' ? data.jobId : document.id,
     jobDateTime: asDate(data.jobDateTime),
     closeDateTime: asDate(data.closeDateTime),
+    completedAt: data.completedAt ? asDate(data.completedAt) : undefined,
     createdAt: data.createdAt ? asDate(data.createdAt) : undefined,
   } as PostedJob;
 };
@@ -384,6 +389,18 @@ export async function getMyJobs(): Promise<PostedJob[]> {
     myJobsCache.set(user.uid, jobs);
   }
   return jobs;
+}
+
+/** Loads completed jobs assigned to the signed-in service provider. */
+export async function getProviderCompletedJobs(): Promise<PostedJob[]> {
+  await ensureInternetConnection();
+  const user = getAuth().currentUser;
+  if (!user) throw new Error('Your login session has expired. Please sign in again.');
+
+  const snapshot = await getDocs(query(collection(getFirestore(), 'jobs'), where('acceptedBidderId', '==', user.uid)));
+  return snapshot.docs.map(mapJobDocument)
+    .filter(job => job.status.toLowerCase() === 'completed')
+    .sort((first, second) => (second.completedAt?.getTime() ?? 0) - (first.completedAt?.getTime() ?? 0));
 }
 
 /** Loads specific job documents by ID for related data such as bid history. */

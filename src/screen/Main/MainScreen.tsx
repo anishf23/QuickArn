@@ -25,7 +25,7 @@ import ProfileScreen from './ProfileScreen';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text, useLocalization } from '../../localization/AppLocalization';
 import { getCachedUserProfile, signOutCurrentUser, subscribeToCurrentUserProfile, updateCurrentUser } from '../../services/firebaseUser';
-import { closeJob, type PostedJob } from '../../services/jobs';
+import { closeJob, getJobsByIds, type PostedJob } from '../../services/jobs';
 import { hp, rf } from '../../utils/responsive';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
@@ -261,6 +261,10 @@ function MainScreen({ navigation, route }: Props) {
             setIsEditingJob(true);
           }
         }}
+        onWalletTopUp={() => {
+          setIsViewingJobDetails(false);
+          setIsViewingWallet(true);
+        }}
         onCloseJob={() => {
           if (!selectedJob) {
             return;
@@ -323,6 +327,16 @@ function MainScreen({ navigation, route }: Props) {
         onProfilePress={() => setIsViewingPersonalProfile(true)}
         onViewAll={() => setIsBrowsingJobs(true)}
         onWalletPress={() => setIsViewingWallet(true)}
+        onReassignRequest={request => {
+          getJobsByIds([request.jobId])
+            .then(([job]) => {
+              if (!job) return;
+              setSelectedJob(job);
+              setIsViewingOwnJob(true);
+              setIsViewingJobDetails(true);
+            })
+            .catch(() => {});
+        }}
       />
     ) : activeTab === 'Post' ? (
       <PostJobScreen onBack={() => setActiveTab('Home')} />

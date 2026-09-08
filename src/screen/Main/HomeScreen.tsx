@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getAuth } from '@react-native-firebase/auth';
 import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import Shimmer from '../../components/Shimmer';
+import { useCustomAlert } from '../../components/CustomAlert';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { getCachedNearbyJobs, getNearbyJobs, type NearbyJob } from '../../services/jobs';
+import { cancelBidRequest, cancelProviderBidRequest, getOwnerBidRequests, getProviderBidRequests, respondToBidRequest, updateBidRequestProgress, type OwnerBidRequest } from '../../services/bids';
 import { hp, rf } from '../../utils/responsive';
 
 type HomeScreenProps = {
@@ -23,6 +25,7 @@ type HomeScreenProps = {
   onProfilePress: () => void;
   onViewAll: () => void;
   onWalletPress: () => void;
+  onReassignRequest: (request: OwnerBidRequest) => void;
 };
 
 const stats = [
@@ -35,17 +38,31 @@ const formatDistance = (distanceKm: number) => distanceKm < 1
   ? `${Math.max(1, Math.round(distanceKm * 1000))} m away`
   : `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km away`;
 
+const formatRequestStatus = (status: string) => status === 'job_started' ? 'Job Started' : status === 'completed' ? 'Job Done' : `${status.charAt(0).toUpperCase()}${status.slice(1)}`;
+const nextProviderAction = (status: string) => {
+  if (status === 'accepted') return { label: 'Start Coming', nextStatus: 'coming' as const };
+  if (status === 'coming') return { label: 'Start Job', nextStatus: 'job_started' as const };
+  if (status === 'job_started') return { label: 'Mark Job Done', nextStatus: 'completed' as const };
+  return null;
+};
+
 function PersonAvatar({ onPress }: { onPress: () => void }) {
   return <Pressable accessibilityLabel="Open provider profile" accessibilityRole="button" hitSlop={5} onPress={onPress} style={styles.avatarWrap}><View style={styles.avatarHead} /><View style={styles.avatarBody} /></Pressable>;
 }
 
-function HomeScreen({ address, isOnline, latitude, longitude, role, verificationStatus, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onProfilePress, onViewAll, onWalletPress }: HomeScreenProps) {
+function HomeScreen({ address, isOnline, latitude, longitude, role, verificationStatus, onAvailabilityPress, onJobPress, onLocationPress, onNotificationPress, onProfilePress, onViewAll, onWalletPress, onReassignRequest }: HomeScreenProps) {
   const { colors } = useAppTheme();
+  const { showAlert } = useCustomAlert();
   const cachedJobs = getCachedNearbyJobs(latitude, longitude, 20);
   const [nearbyJobs, setNearbyJobs] = useState<NearbyJob[]>(() => cachedJobs ?? []);
   const [isLoadingJobs, setIsLoadingJobs] = useState(() => !cachedJobs);
   const [jobsMessage, setJobsMessage] = useState('');
   const [visibleJobCount, setVisibleJobCount] = useState(20);
+  const [isBidRequestModalVisible, setIsBidRequestModalVisible] = useState(false);
+  const [bidRequests, setBidRequests] = useState<OwnerBidRequest[]>([]);
+  const [isLoadingBidRequests, setIsLoadingBidRequests] = useState(false);
+  const [bidRequestMessage, setBidRequestMessage] = useState('');
+  const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const fullAddress = address?.trim() || 'Choose your location';
   const areaName = fullAddress.split(',')[0]?.trim() || 'Select Location';
   const isProviderVerified = role === 'provider' && verificationStatus === 'accepted';
@@ -101,8 +118,138 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
     setVisibleJobCount(20);
   }, [nearbyJobs]);
 
+  useEffect(() => {
+    if (role !== 'customer' && role !== 'provider') {
+      setBidRequests([]);
+      return;
+    }
+    let isMounted = true;
+    (role === 'provider' ? getProviderBidRequests() : getOwnerBidRequests())
+      .then(requests => { if (isMounted) setBidRequests(requests); })
+      .catch(() => { if (isMounted) setBidRequests([]); });
+    return () => { isMounted = false; };
+  }, [role]);
+
   const loadMoreJobs = () => {
     setVisibleJobCount(currentCount => Math.min(currentCount + 20, nearbyJobs.length));
+  };
+
+  const hasActiveBidRequest = bidRequests.some(request => role === 'provider'
+    ? ['requested', 'accepted', 'coming', 'job_started'].includes(request.status.toLowerCase())
+    : ['requested', 'accepted', 'coming', 'job_started'].includes(request.status.toLowerCase()));
+
+  const openBidRequests = () => {
+    setIsBidRequestModalVisible(true);
+    setIsLoadingBidRequests(true);
+    setBidRequestMessage('');
+    (role === 'provider' ? getProviderBidRequests() : getOwnerBidRequests())
+      .then(setBidRequests)
+      .catch(error => setBidRequestMessage(error instanceof Error ? error.message : 'Unable to load bid requests.'))
+      .finally(() => setIsLoadingBidRequests(false));
+  };
+
+  const cancelRequest = (request: OwnerBidRequest, reassign = false) => {
+    showAlert(
+      reassign ? 'Reassign job' : 'Cancel bid request',
+      reassign ? 'This request will be cancelled, the held wallet amount refunded, and the job will reopen for another provider.' : 'This request will be cancelled and the held wallet amount refunded to your wallet.',
+      [
+        { text: 'Keep request', style: 'cancel' },
+        {
+          text: reassign ? 'Reassign' : 'Cancel request',
+          style: 'destructive',
+          onPress: async () => {
+            setRequestActionId(request.requestId);
+            try {
+              await cancelBidRequest(request);
+              setBidRequests(current => current.map(item => item.requestId === request.requestId ? { ...item, status: 'cancelled' } : item));
+              if (reassign) {
+                setIsBidRequestModalVisible(false);
+                onReassignRequest(request);
+              }
+            } catch (error) {
+              showAlert('Unable to update request', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setRequestActionId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const respondToRequest = (request: OwnerBidRequest, accept: boolean) => {
+    showAlert(
+      accept ? 'Accept job request' : 'Reject job request',
+      accept ? 'Confirm that you are ready to accept this job request.' : 'Rejecting this request will return the held amount to the job owner.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: accept ? 'Accept' : 'Reject',
+          style: accept ? 'default' : 'destructive',
+          onPress: async () => {
+            setRequestActionId(request.requestId);
+            try {
+              await respondToBidRequest(request, accept);
+              setBidRequests(current => current.map(item => item.requestId === request.requestId ? { ...item, status: accept ? 'accepted' : 'rejected' } : item));
+            } catch (error) {
+              showAlert('Unable to update request', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setRequestActionId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const advanceProviderRequest = (request: OwnerBidRequest, nextStatus: 'coming' | 'job_started' | 'completed') => {
+    const action = nextProviderAction(request.status.toLowerCase());
+    showAlert(
+      action?.label ?? 'Update job status',
+      `Confirm that the job status should change to ${formatRequestStatus(nextStatus)}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            setRequestActionId(request.requestId);
+            try {
+              await updateBidRequestProgress(request, nextStatus);
+              setBidRequests(current => current.map(item => item.requestId === request.requestId ? { ...item, status: nextStatus } : item));
+            } catch (error) {
+              showAlert('Unable to update job', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setRequestActionId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const cancelProviderRequest = (request: OwnerBidRequest) => {
+    showAlert(
+      'Cancel Job',
+      'Cancel this job? The job will reopen for reassignment and the held amount will be refunded to the job owner.',
+      [
+        { text: 'Keep Job', style: 'cancel' },
+        {
+          text: 'Cancel Job',
+          style: 'destructive',
+          onPress: async () => {
+            setRequestActionId(request.requestId);
+            try {
+              await cancelProviderBidRequest(request);
+              setBidRequests(current => current.map(item => item.requestId === request.requestId ? { ...item, status: 'cancelled' } : item));
+            } catch (error) {
+              showAlert('Unable to cancel job', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setRequestActionId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -209,12 +356,67 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
             }}
             showsVerticalScrollIndicator={false}
           />
+        {(role === 'customer' || role === 'provider') && hasActiveBidRequest ? <View style={[styles.bidRequestOverlay, { backgroundColor: `${colors.primary}E6`, borderColor: `${colors.primary}99` }]}>
+          <Pressable accessibilityRole="button" onPress={openBidRequests} style={styles.bidRequestLink}>
+            <Text style={styles.bidRequestOverlayText}>{role === 'provider' ? 'See Job Requests' : 'See Job Bid Requests'}</Text>
+            <Text style={styles.bidRequestOverlayArrow}>›</Text>
+          </Pressable>
+        </View> : null}
       </View>
+
+      <Modal animationType="slide" transparent visible={isBidRequestModalVisible} onRequestClose={() => setIsBidRequestModalVisible(false)}>
+        <View style={styles.requestModalBackdrop}>
+          <View style={[styles.requestModalCard, { backgroundColor: colors.card }]}>
+            <View style={styles.requestModalHeader}>
+              <Text style={[styles.requestModalTitle, { color: colors.text }]}>{role === 'provider' ? 'Job Requests' : 'Job Bid Requests'}</Text>
+              <Pressable accessibilityLabel="Close" accessibilityRole="button" onPress={() => setIsBidRequestModalVisible(false)} style={styles.closeRequestModal}><Text style={[styles.closeRequestModalText, { color: colors.textMuted }]}>×</Text></Pressable>
+            </View>
+            {isLoadingBidRequests ? <View style={styles.requestCenter}><ActivityIndicator color={colors.primary} /></View> : bidRequestMessage ? <Text style={styles.requestError}>{bidRequestMessage}</Text> : bidRequests.length === 0 ? <Text style={[styles.emptyRequestText, { color: colors.textMuted }]}>No bid requests yet.</Text> : <FlatList
+              data={bidRequests}
+              keyExtractor={request => request.requestId}
+              contentContainerStyle={styles.requestList}
+              renderItem={({ item: request }) => {
+                const active = request.status.toLowerCase() === 'requested';
+                const ownerCanCancel = role === 'customer' && ['requested', 'accepted', 'coming', 'job_started'].includes(request.status.toLowerCase());
+                const providerAction = role === 'provider' ? nextProviderAction(request.status.toLowerCase()) : null;
+                return <View style={[styles.requestCard, { borderColor: active ? `${colors.primary}40` : '#E5E7EB', backgroundColor: colors.background }]}>
+                  <View style={styles.requestTitleRow}>
+                    <Text numberOfLines={2} style={[styles.requestJobTitle, { color: colors.text }]}>{request.jobTitle}</Text>
+                    <View style={[styles.requestStatusBadge, { backgroundColor: active ? `${colors.primary}1A` : request.status === 'accepted' ? '#DCFCE7' : '#F1F5F9' }]}><Text style={[styles.requestStatusText, { color: active ? colors.primary : request.status === 'accepted' ? '#15803D' : colors.textMuted }]}>{formatRequestStatus(request.status)}</Text></View>
+                  </View>
+                  <Text style={[styles.requestProvider, { color: colors.text }]}>Provider: {request.bidderName}</Text>
+                  <Text style={[styles.requestDetails, { color: colors.textMuted }]}>Bid ₹{request.bidAmount} · Paid ₹{request.totalPaid} · Fee ₹{request.platformFee}</Text>
+                  {role === 'provider' ? <Text style={[styles.providerStatusText, { color: request.status === 'accepted' ? '#15803D' : colors.textMuted }]}>Status: {formatRequestStatus(request.status)}</Text> : null}
+                  {request.createdAt ? <Text style={[styles.requestDate, { color: colors.textMuted }]}>Requested {request.createdAt.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</Text> : null}
+                  {ownerCanCancel ? <View style={styles.requestActions}>
+                    <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => cancelRequest(request)} style={[styles.requestActionButton, styles.cancelRequestButton, { borderColor: '#DC2626' }]}><Text style={styles.cancelRequestText}>{requestActionId === request.requestId ? 'Updating...' : 'Cancel Job'}</Text></Pressable>
+                    <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => cancelRequest(request, true)} style={[styles.requestActionButton, { backgroundColor: colors.primary }]}><Text style={styles.reassignRequestText}>Reassign</Text></Pressable>
+                  </View> : active && role === 'provider' ? <View style={styles.requestActions}>
+                    <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => respondToRequest(request, false)} style={[styles.requestActionButton, styles.cancelRequestButton, { borderColor: '#DC2626' }]}><Text style={styles.cancelRequestText}>{requestActionId === request.requestId ? 'Updating...' : 'Reject'}</Text></Pressable>
+                    <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => respondToRequest(request, true)} style={[styles.requestActionButton, { backgroundColor: '#15803D' }]}><Text style={styles.reassignRequestText}>Accept</Text></Pressable>
+                  </View> : providerAction ? <View style={styles.requestActions}>
+                    <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => cancelProviderRequest(request)} style={[styles.requestActionButton, styles.cancelRequestButton, { borderColor: '#DC2626' }]}><Text style={styles.cancelRequestText}>{requestActionId === request.requestId ? 'Updating...' : 'Cancel Job'}</Text></Pressable>
+                    <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => advanceProviderRequest(request, providerAction.nextStatus)} style={[styles.requestActionButton, { backgroundColor: colors.primary, opacity: requestActionId ? 0.7 : 1 }]}><Text style={styles.reassignRequestText}>{providerAction.label}</Text></Pressable>
+                  </View> : null}
+                </View>;
+              }}
+            />}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  bidRequestLink: { alignItems: 'center', flexDirection: 'row', justifyContent: 'center', minHeight: 48, paddingHorizontal: 16 },
+  bidRequestLinkArrow: { fontSize: rf(22), fontWeight: '700', lineHeight: rf(18), marginLeft: 5 },
+  bidRequestLinkText: { fontSize: rf(12), fontWeight: '800' },
+  bidRequestOverlay: { borderRadius: 24, borderWidth: 1, bottom: 14, elevation: 8, left: 26, position: 'absolute', right: 26, shadowColor: '#0F172A', shadowOffset: { height: 3, width: 0 }, shadowOpacity: 0.16, shadowRadius: 7 },
+  bidRequestOverlayArrow: { color: '#FFFFFF', fontSize: rf(22), fontWeight: '700', lineHeight: rf(18), marginLeft: 5 },
+  bidRequestOverlayText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '800' },
+  cancelRequestButton: { backgroundColor: '#FFFFFF', borderWidth: 1 },
+  cancelRequestText: { color: '#DC2626', fontSize: rf(10), fontWeight: '800' },
   alreadyBidBadge: { borderRadius: 10, marginLeft: 7, paddingHorizontal: 7, paddingVertical: 3 },
   alreadyBidText: { fontSize: rf(8), fontWeight: '800' },
   bidCountText: { fontSize: rf(9), fontWeight: '600', marginLeft: 9 },
@@ -222,8 +424,11 @@ const styles = StyleSheet.create({
   avatarHead: { backgroundColor: '#A7ADBA', borderRadius: 5, height: 10, width: 10 },
   avatarWrap: { alignItems: 'center', backgroundColor: '#F2F3F6', borderRadius: 22, height: 44, justifyContent: 'center', width: 44 },
   content: { flex: 1, paddingHorizontal: 10, paddingTop: 13 },
+  closeRequestModal: { alignItems: 'center', height: 32, justifyContent: 'center', width: 32 },
+  closeRequestModalText: { fontSize: rf(27), fontWeight: '400', lineHeight: rf(28) },
   distanceBadge: { backgroundColor: '#F0E8FF', borderRadius: 4, marginLeft: 12, paddingHorizontal: 7, paddingVertical: 2 },
   distanceText: { fontSize: rf(10), fontWeight: '700' },
+  emptyRequestText: { fontSize: rf(12), paddingVertical: 35, textAlign: 'center' },
   areaName: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '800' },
   fullAddress: { color: '#FFFFFF', fontSize: rf(9), marginTop: 1, opacity: 0.82 },
   header: { alignItems: 'center', flexDirection: 'row',
@@ -240,7 +445,7 @@ const styles = StyleSheet.create({
   jobTitleCopy: { flex: 1 },
   jobTitleRow: { alignItems: 'center', flexDirection: 'row' },
   jobsStateText: { fontSize: rf(11), marginTop: 4, textAlign: 'center' },
-  listContent: { flexGrow: 1, paddingBottom: 18 },
+  listContent: { flexGrow: 1, paddingBottom: 82 },
   locationArrow: { height: 10, marginLeft: 5, tintColor: '#FFFFFF', width: 10 },
   locationCopy: { flex: 1, paddingRight: 3 },
   locationIcon: { height: 16, marginRight: 7, tintColor: '#FFFFFF', width: 16 },
@@ -253,6 +458,26 @@ const styles = StyleSheet.create({
   onlinePerson: { color: brandColors.blue, fontSize: rf(18), lineHeight: rf(18) },
   onlineSubtitle: { fontSize: rf(9), marginTop: 2 },
   onlineTitle: { fontSize: rf(14), fontWeight: '800' },
+  reassignRequestText: { color: '#FFFFFF', fontSize: rf(10), fontWeight: '800' },
+  requestActionButton: { alignItems: 'center', borderRadius: 7, flex: 1, height: 36, justifyContent: 'center' },
+  requestActions: { flexDirection: 'row', gap: 9, marginTop: 13 },
+  requestCard: { borderRadius: 10, borderWidth: 1, marginBottom: 10, padding: 12 },
+  requestCenter: { alignItems: 'center', justifyContent: 'center', minHeight: 150 },
+  requestDate: { fontSize: rf(9), marginTop: 7 },
+  requestDetails: { fontSize: rf(10), marginTop: 5 },
+  requestError: { color: '#DC2626', fontSize: rf(11), lineHeight: rf(16), paddingVertical: 24, textAlign: 'center' },
+  requestJobTitle: { flex: 1, fontSize: rf(13), fontWeight: '800', paddingRight: 7 },
+  requestList: { paddingTop: 13 },
+  requestModalBackdrop: { backgroundColor: 'rgba(15, 23, 42, 0.5)', flex: 1, justifyContent: 'flex-end' },
+  requestModalCard: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '78%', minHeight: '46%', padding: 16 },
+  requestModalHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  requestModalTitle: { fontSize: rf(17), fontWeight: '800' },
+  requestProvider: { fontSize: rf(11), fontWeight: '700', marginTop: 9 },
+  providerProgressButton: { alignItems: 'center', borderRadius: 7, flex: 1, height: 36, justifyContent: 'center' },
+  providerStatusText: { fontSize: rf(10), fontWeight: '800', marginTop: 7 },
+  requestStatusBadge: { borderRadius: 7, flexShrink: 0, paddingHorizontal: 7, paddingVertical: 3 },
+  requestStatusText: { fontSize: rf(8), fontWeight: '800', textTransform: 'capitalize' },
+  requestTitleRow: { alignItems: 'flex-start', flexDirection: 'row' },
   safeArea: { flex: 1 },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, marginTop: hp(2.4), paddingHorizontal: 2 },
   sectionTitle: { fontSize: rf(16), fontWeight: '800' },

@@ -18,6 +18,10 @@ const formatJobDate = (date: Date) => date.toLocaleDateString('en-IN', {
   day: '2-digit', month: 'short', year: 'numeric',
 });
 
+const formatCompletedDateTime = (date?: Date) => date
+  ? date.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  : '—';
+
 const getDisplayStatus = (job: PostedJob, currentTime: number) => {
   if (job.status.toLowerCase() === 'closed') {
     return 'Closed';
@@ -74,6 +78,9 @@ function MyJobsScreen({ onBack, onOpenJob }: MyJobsScreenProps) {
             const status = getDisplayStatus(job, currentTime);
             const isClosed = status.toLowerCase() === 'closed';
             const isOverdue = status.toLowerCase() === 'overdue';
+            const isAccepted = status.toLowerCase() === 'accepted';
+            const isRequested = status.toLowerCase() === 'requested' || status.toLowerCase() === 'pending';
+            const isCompleted = status.toLowerCase() === 'completed';
             const hasAlreadyBid = Boolean(currentUserId && job.bidderIds?.includes(currentUserId));
             const bidCount = job.bidCount ?? job.bidderIds?.length ?? 0;
 
@@ -83,7 +90,7 @@ function MyJobsScreen({ onBack, onOpenJob }: MyJobsScreenProps) {
               <View style={styles.jobCopy}>
                 <View style={styles.titleRow}>
                   <Text numberOfLines={2} style={[styles.jobTitle, { color: colors.text }]}>{job.title}</Text>
-                  <View style={[styles.statusBadge, isClosed && styles.closedStatusBadge, isOverdue && styles.overdueStatusBadge]}><Text style={[styles.statusText, isClosed && styles.closedStatusText, isOverdue && styles.overdueStatusText]}>{status}</Text></View>
+                  <View style={[styles.statusBadge, isClosed && styles.closedStatusBadge, isOverdue && styles.overdueStatusBadge, isAccepted && styles.acceptedStatusBadge, isRequested && { backgroundColor: `${colors.primary}1A` }]}><Text style={[styles.statusText, isClosed && styles.closedStatusText, isOverdue && styles.overdueStatusText, isAccepted && styles.acceptedStatusText, isRequested && { color: colors.primary }]}>{status.toLowerCase() === 'pending' ? 'Requested' : status}</Text></View>
                 </View>
                 <Text numberOfLines={1} style={[styles.jobArea, { color: colors.textMuted }]}>⌖ {job.pickupDetails.address || 'Pickup location'}</Text>
                 <View style={styles.bidSummaryRow}>
@@ -94,6 +101,11 @@ function MyJobsScreen({ onBack, onOpenJob }: MyJobsScreenProps) {
                   <Text style={[styles.budget, { color: colors.primary }]}>₹{job.budget}{job.budgetType === 'hourly' ? ' / hr' : ''}</Text>
                   <Text style={[styles.date, { color: colors.textMuted }]}>{formatJobDate(job.jobDateTime)}</Text>
                 </View>
+                {isCompleted ? <View style={styles.completedSummary}>
+                  {job.budgetType === 'hourly' ? <Text style={[styles.completedRate, { color: colors.textMuted }]}>Hourly rate ₹{job.budget} × {job.agreedHours ?? 1} hr</Text> : <Text style={[styles.completedRate, { color: colors.textMuted }]}>Fixed job amount</Text>}
+                  <Text style={styles.completedTotal}>Total ₹{job.agreedTotalAmount ?? (job.budgetType === 'hourly' ? job.budget * (job.agreedHours ?? 1) : job.budget)}</Text>
+                  <Text style={[styles.completedDate, { color: colors.textMuted }]}>Completed: {formatCompletedDateTime(job.completedAt)}</Text>
+                </View> : null}
               </View>
             </Pressable>
             );
@@ -105,6 +117,8 @@ function MyJobsScreen({ onBack, onOpenJob }: MyJobsScreenProps) {
 }
 
 const styles = StyleSheet.create({
+  acceptedStatusBadge: { backgroundColor: '#DCFCE7' },
+  acceptedStatusText: { color: '#15803D' },
   alreadyBidBadge: { backgroundColor: '#EDE9FE', borderRadius: 9, paddingHorizontal: 7, paddingVertical: 2 },
   alreadyBidText: { fontSize: rf(8), fontWeight: '800' },
   bidCount: { fontSize: rf(9), fontWeight: '600', marginLeft: 7 },
@@ -115,6 +129,10 @@ const styles = StyleSheet.create({
   closedStatusBadge: { backgroundColor: '#FEE2E2' },
   closedStatusText: { color: '#DC2626' },
   centerState: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingHorizontal: 30 },
+  completedDate: { fontSize: rf(8), marginTop: 5 },
+  completedRate: { fontSize: rf(9), fontWeight: '700' },
+  completedSummary: { backgroundColor: '#F0FDF4', borderRadius: 7, marginTop: 9, padding: 8 },
+  completedTotal: { color: '#15803D', fontSize: rf(12), fontWeight: '800', marginTop: 3 },
   date: { fontSize: rf(10) },
   emptyTitle: { fontSize: rf(16), fontWeight: '800', marginBottom: 7 },
   jobArea: { fontSize: rf(11), marginTop: 5 },

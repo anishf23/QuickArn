@@ -15,6 +15,10 @@ const formatDate = (date?: Date) => date
   ? date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
   : '—';
 
+const formatDateTime = (date?: Date) => date
+  ? date.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  : '—';
+
 const getJobStatus = (bid: ProviderBid) => bid.job?.status.trim().toLowerCase() ?? '';
 
 const getDistanceKm = (fromLatitude: number, fromLongitude: number, toLatitude: number, toLongitude: number) => {
@@ -87,6 +91,9 @@ function MyBidsScreen({ onBack }: MyBidsScreenProps) {
               ? getDistanceKm(coordinates.latitude, coordinates.longitude, pickupLatitude, pickupLongitude)
               : null;
             const bidCount = bid.job?.bidCount ?? bid.job?.bidderIds?.length ?? 0;
+            const completed = activeTab === 'Completed';
+            const completedHours = bid.agreedHours ?? 1;
+            const completedTotal = bid.job?.budgetType === 'hourly' ? bid.bidAmount * completedHours : bid.bidAmount;
 
             return (
             <View key={bid.bidId} style={[styles.bidCard, { backgroundColor: colors.card }]}> 
@@ -109,6 +116,11 @@ function MyBidsScreen({ onBack }: MyBidsScreenProps) {
                   <Text style={[styles.dateValue, { color: colors.textMuted }]}>{formatDate(bid.job?.jobDateTime)}</Text>
                 </View>
               </View>
+              {completed ? <View style={[styles.completedSummary, { backgroundColor: '#F0FDF4' }]}>
+                {bid.job?.budgetType === 'hourly' ? <Text style={[styles.completedRate, { color: colors.textMuted }]}>Hourly rate ₹{bid.bidAmount} × {completedHours} hr</Text> : <Text style={[styles.completedRate, { color: colors.textMuted }]}>Fixed job amount</Text>}
+                <Text style={[styles.completedTotal, { color: '#15803D' }]}>Total ₹{completedTotal}</Text>
+                <Text style={[styles.completedDate, { color: colors.textMuted }]}>Completed: {formatDateTime(bid.completedAt ?? bid.job?.completedAt)}</Text>
+              </View> : null}
             </View>
             );
           })}
@@ -125,6 +137,10 @@ const styles = StyleSheet.create({
   bidMetaText: { fontSize: rf(9), fontWeight: '600' },
   bidTitle: { flex: 1, fontSize: rf(16), fontWeight: '800', lineHeight: rf(21) },
   centerState: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
+  completedDate: { fontSize: rf(9), marginTop: 6 },
+  completedRate: { fontSize: rf(10), fontWeight: '700' },
+  completedSummary: { borderRadius: 7, marginTop: 13, padding: 10 },
+  completedTotal: { fontSize: rf(13), fontWeight: '800', marginTop: 4 },
   dateLabel: { fontSize: rf(10), fontWeight: '800' },
   dateValue: { fontSize: rf(9), marginTop: 4 },
   datesRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },

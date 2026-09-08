@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { useCustomAlert } from '../../components/CustomAlert';
 import { createBid } from '../../services/bids';
@@ -16,6 +17,14 @@ type PlaceBidScreenProps = {
   onGoHome: () => void;
 };
 
+const responseTimes = [
+  { label: '30m', minutes: 30 },
+  { label: '1 hr', minutes: 60 },
+  { label: '2 hr', minutes: 120 },
+  { label: '3 hr', minutes: 180 },
+  { label: '4 hr', minutes: 240 },
+];
+
 function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenProps) {
   const { colors } = useAppTheme();
   const { showAlert } = useCustomAlert();
@@ -24,6 +33,15 @@ function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenPro
   const [isAccepted, setIsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [amountError, setAmountError] = useState('');
+  const [isAvailableForJob, setIsAvailableForJob] = useState(true);
+  const [availableDateTime, setAvailableDateTime] = useState(() => new Date());
+  const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
+  const [expectedResponseTimeMinutes, setExpectedResponseTimeMinutes] = useState(30);
+
+  const onDateTimeChange = (_event: DateTimePickerEvent, value?: Date) => {
+    setPickerMode(null);
+    if (value) setAvailableDateTime(value);
+  };
 
   const submitBid = async () => {
     const bidAmount = Number(amount);
@@ -40,7 +58,7 @@ function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenPro
     setAmountError('');
     setIsSubmitting(true);
     try {
-      await createBid({ amount: bidAmount, job, message });
+      await createBid({ amount: bidAmount, availableDateTime: isAvailableForJob ? availableDateTime : null, expectedResponseTimeMinutes, isAvailableForJob, job, message });
       setIsAccepted(true);
     } catch (error) {
       showAlert('Unable to submit bid', error instanceof Error ? error.message : 'Please try again.');
@@ -53,7 +71,7 @@ function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenPro
     <View style={[styles.screen, { backgroundColor: colors.card }]}>
       <PostJobHeader onBack={onBack} title="Place Your Bid" />
 
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={[styles.label, { color: colors.text }]}>YOUR BID AMOUNT (₹)</Text>
         <TextInput
           keyboardType="numeric"
@@ -81,7 +99,39 @@ function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenPro
           placeholderTextColor={colors.textMuted}
           style={[styles.messageInput, { color: colors.text }]}
         />
-      </View>
+
+        <View style={styles.availabilityHeader}>
+          <View style={styles.availabilityTitleWrap}>
+            <Text style={[styles.availabilityTitle, { color: colors.text }]}>🟢 Available for this job</Text>
+            <Text style={[styles.availabilityHint, { color: colors.textMuted }]}>Let the customer know when you can start.</Text>
+          </View>
+          <Pressable accessibilityRole="switch" accessibilityState={{ checked: isAvailableForJob }} onPress={() => setIsAvailableForJob(value => !value)} style={[styles.switchTrack, { backgroundColor: isAvailableForJob ? colors.primary : '#CBD5E1' }]}>
+            <View style={[styles.switchKnob, isAvailableForJob ? styles.switchKnobOn : styles.switchKnobOff]} />
+          </Pressable>
+        </View>
+
+        {isAvailableForJob ? <>
+          <Text style={[styles.fieldTitle, { color: colors.text }]}>📅 Available date & time</Text>
+          <View style={styles.dateTimeRow}>
+            <Pressable accessibilityRole="button" onPress={() => setPickerMode('date')} style={[styles.dateTimeInput, { borderColor: '#E0D6ED' }]}>
+              <Text style={[styles.dateTimeText, { color: colors.text }]}>{availableDateTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => setPickerMode('time')} style={[styles.dateTimeInput, { borderColor: '#E0D6ED' }]}>
+              <Text style={[styles.dateTimeText, { color: colors.text }]}>{availableDateTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</Text>
+            </Pressable>
+          </View>
+
+          <Text style={[styles.fieldTitle, { color: colors.text }]}>⏱ Expected response time</Text>
+          <View style={styles.responseTabs}>
+            {responseTimes.map(option => {
+              const selected = option.minutes === expectedResponseTimeMinutes;
+              return <Pressable key={option.minutes} accessibilityRole="button" onPress={() => setExpectedResponseTimeMinutes(option.minutes)} style={[styles.responseTab, { borderColor: selected ? colors.primary : '#E0D6ED', backgroundColor: selected ? colors.primary : colors.card }]}>
+                <Text style={[styles.responseTabText, { color: selected ? '#FFFFFF' : colors.text }]}>{option.label}</Text>
+              </Pressable>;
+            })}
+          </View>
+        </> : null}
+      </ScrollView>
 
       <View style={styles.footer}>
         <Pressable accessibilityRole="button" disabled={isSubmitting} onPress={submitBid} style={[styles.submitButton, { backgroundColor: colors.primary, opacity: isSubmitting ? 0.7 : 1 }]}>
@@ -117,22 +167,34 @@ function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenPro
           </View>
         </View>
       </Modal>
+      {pickerMode ? <DateTimePicker minimumDate={pickerMode === 'date' ? new Date() : undefined} mode={pickerMode} value={availableDateTime} onChange={onDateTimeChange} /> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   amountInput: { borderColor: '#E0D6ED', borderRadius: 6, borderWidth: 1, fontSize: rf(13), fontWeight: '700', height: 43, paddingHorizontal: 12 },
-  content: { flex: 1, paddingHorizontal: 11, paddingTop: 23 },
+  availabilityHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 24 },
+  availabilityHint: { fontSize: rf(10), marginTop: 3 },
+  availabilityTitle: { fontSize: rf(13), fontWeight: '800' },
+  availabilityTitleWrap: { flex: 1, paddingRight: 12 },
+  content: { flexGrow: 1, paddingBottom: 24, paddingHorizontal: 11, paddingTop: 23 },
+  dateTimeInput: { borderRadius: 7, borderWidth: 1, flex: 1, height: 43, justifyContent: 'center', paddingHorizontal: 11 },
+  dateTimeRow: { flexDirection: 'row', gap: 9, marginTop: 8 },
+  dateTimeText: { fontSize: rf(11), fontWeight: '700' },
   errorText: { color: '#DC2626', fontSize: rf(10), fontWeight: '600', marginTop: 5 },
   footer: { paddingBottom: hp(2), paddingHorizontal: 11 },
   footerHint: { fontSize: rf(9), marginTop: 10, textAlign: 'center' },
+  fieldTitle: { fontSize: rf(12), fontWeight: '800', marginTop: 22 },
   hint: { fontSize: rf(9), fontWeight: '600', marginTop: 6 },
   label: { fontSize: rf(10), fontWeight: '800' },
   checkIcon: { color: '#FFFFFF', fontSize: rf(34), fontWeight: '800', marginTop: -4 },
   messageInput: { borderColor: '#E0D6ED', borderRadius: 6, borderWidth: 1, fontSize: rf(13), height: 119, paddingHorizontal: 12, paddingTop: 11 },
   messageLabel: { marginTop: 27, marginBottom: 8 },
   screen: { flex: 1 },
+  responseTabs: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  responseTab: { alignItems: 'center', borderRadius: 7, borderWidth: 1, flex: 1, height: 37, justifyContent: 'center' },
+  responseTabText: { fontSize: rf(9), fontWeight: '800' },
   modalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.42)', flex: 1, justifyContent: 'center', paddingHorizontal: 23 },
   modalCard: { borderRadius: 18, elevation: 12, maxWidth: 350, padding: 18, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 18, width: '100%' },
   modalHeaderTitle: { fontSize: rf(15), fontWeight: '800', textAlign: 'center' },
@@ -151,6 +213,10 @@ const styles = StyleSheet.create({
   successTitle: { fontSize: rf(20), fontWeight: '800', marginTop: 25, textAlign: 'center' },
   submitButton: { alignItems: 'center', borderRadius: 6, elevation: 4, height: 39, justifyContent: 'center', shadowColor: '#4E00A5', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 },
   submitText: { color: '#FFFFFF', fontSize: rf(12), fontWeight: '800' },
+  switchKnob: { backgroundColor: '#FFFFFF', borderRadius: 11, height: 22, width: 22 },
+  switchKnobOff: { alignSelf: 'flex-start', marginLeft: 2 },
+  switchKnobOn: { alignSelf: 'flex-end', marginRight: 2 },
+  switchTrack: { borderRadius: 14, height: 26, justifyContent: 'center', width: 48 },
 });
 
 export default PlaceBidScreen;
