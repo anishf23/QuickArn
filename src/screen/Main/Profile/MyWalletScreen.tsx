@@ -82,6 +82,7 @@ function MyWalletScreen({ onBack }: MyWalletScreenProps) {
               <View style={styles.transactionInfo}>
                 <Text style={[styles.transactionTitle, { color: colors.text }]}>{transaction.title}</Text>
                 <Text style={[styles.transactionDate, { color: colors.textMuted }]}>{transaction.createdAt ? transaction.createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Just now'}</Text>
+                {typeof transaction.jobAmount === 'number' ? <Text style={[styles.transactionFees, { color: colors.textMuted }]}>Job ₹{transaction.jobAmount} · Platform fee ₹{transaction.platformFee ?? 0} · GST ₹{transaction.gstOnPlatformFee ?? 0}</Text> : null}
               </View>
               <Text style={[styles.amount, { color: transaction.type === 'credit' ? '#159B62' : colors.text }]}>{transaction.type === 'credit' ? '+' : '-'}₹{transaction.amount.toLocaleString('en-IN')}</Text>
             </View>
@@ -140,8 +141,9 @@ const styles = StyleSheet.create({
   modalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.42)', flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
   modalTitle: { fontSize: rf(18), fontWeight: '800', textAlign: 'center' },
   screen: { flex: 1 },
-  transaction: { alignItems: 'center', flexDirection: 'row', minHeight: 59, paddingHorizontal: 12 },
+  transaction: { alignItems: 'center', flexDirection: 'row', minHeight: 66, paddingHorizontal: 12 },
   transactionDate: { fontSize: rf(9), marginTop: 3 },
+  transactionFees: { fontSize: rf(8), marginTop: 3 },
   transactionIcon: { alignItems: 'center', borderRadius: 15, height: 30, justifyContent: 'center', width: 30 },
   transactionInfo: { flex: 1, marginLeft: 10 },
   transactionSymbol: { fontSize: rf(14), fontWeight: '800' },

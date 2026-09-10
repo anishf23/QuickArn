@@ -245,7 +245,8 @@ export async function acceptBid(job: PostedJob, bid: JobBid, agreedHours?: numbe
   const transactionReference = doc(collection(database, 'transactions'));
   const bidRequestReference = doc(collection(database, 'bidrequest'));
   const platformFee = Math.round(totalAmount * 0.05 * 100) / 100;
-  const walletDebitAmount = Math.round((totalAmount + platformFee) * 100) / 100;
+  const gstOnPlatformFee = Math.round(platformFee * 0.18 * 100) / 100;
+  const walletDebitAmount = Math.round((totalAmount + platformFee + gstOnPlatformFee) * 100) / 100;
 
   await runTransaction(database, async transaction => {
     const walletSnapshot = await transaction.get(walletReference);
@@ -265,6 +266,7 @@ export async function acceptBid(job: PostedJob, bid: JobBid, agreedHours?: numbe
       agreedHours: hourlyJob ? agreedHours ?? 1 : null,
       agreedTotalAmount: totalAmount,
       platformFee,
+      gstOnPlatformFee,
       walletDebitAmount,
       acceptedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -277,6 +279,7 @@ export async function acceptBid(job: PostedJob, bid: JobBid, agreedHours?: numbe
       agreedHours: hourlyJob ? agreedHours ?? 1 : null,
       agreedTotalAmount: totalAmount,
       platformFee,
+      gstOnPlatformFee,
       status: 'requested',
       updatedAt: serverTimestamp(),
     });
@@ -291,6 +294,7 @@ export async function acceptBid(job: PostedJob, bid: JobBid, agreedHours?: numbe
       amount: walletDebitAmount,
       jobAmount: totalAmount,
       platformFee,
+      gstOnPlatformFee,
       currency: 'INR',
       status: 'completed',
       createdAt: serverTimestamp(),
@@ -311,6 +315,7 @@ export async function acceptBid(job: PostedJob, bid: JobBid, agreedHours?: numbe
       agreedHours: hourlyJob ? agreedHours ?? 1 : null,
       jobAmount: totalAmount,
       platformFee,
+      gstOnPlatformFee,
       totalPaid: walletDebitAmount,
       currency: 'INR',
       status: 'requested',
@@ -445,7 +450,7 @@ export async function updateBidRequestProgress(request: OwnerBidRequest, nextSta
 
   await runTransaction(database, async transaction => {
     const requestSnapshot = await transaction.get(requestReference);
-    const data = requestSnapshot.data() as { bidStatus?: unknown; bidderId?: unknown; jobAmount?: unknown; jobTitle?: unknown; status?: unknown } | undefined;
+    const data = requestSnapshot.data() as { bidStatus?: unknown; bidderId?: unknown; gstOnPlatformFee?: unknown; jobAmount?: unknown; jobTitle?: unknown; platformFee?: unknown; status?: unknown } | undefined;
     if (!requestSnapshot.exists || data?.bidderId !== user.uid) throw new Error('You cannot update this job request.');
     const currentStatus = typeof data.status === 'string' ? data.status : data?.bidStatus;
     if (typeof currentStatus !== 'string' || allowedTransitions[currentStatus] !== nextStatus) {
@@ -453,6 +458,8 @@ export async function updateBidRequestProgress(request: OwnerBidRequest, nextSta
     }
     const timestampField = nextStatus === 'coming' ? 'comingAt' : nextStatus === 'job_started' ? 'startedAt' : 'completedAt';
     const earningAmount = typeof data.jobAmount === 'number' ? data.jobAmount : 0;
+    const platformFee = typeof data.platformFee === 'number' ? data.platformFee : 0;
+    const gstOnPlatformFee = typeof data.gstOnPlatformFee === 'number' ? data.gstOnPlatformFee : 0;
     const walletReference = nextStatus === 'completed' ? doc(database, 'wallets', user.uid) : null;
     const earningTransactionReference = nextStatus === 'completed' ? doc(collection(database, 'transactions')) : null;
     const walletSnapshot = walletReference ? await transaction.get(walletReference) : null;
@@ -472,6 +479,10 @@ export async function updateBidRequestProgress(request: OwnerBidRequest, nextSta
         bidId: request.bidId,
         requestId: request.requestId,
         amount: earningAmount,
+        jobAmount: earningAmount,
+        platformFee,
+        gstOnPlatformFee,
+        netAmount: earningAmount,
         currency: 'INR',
         status: 'completed',
         createdAt: serverTimestamp(),

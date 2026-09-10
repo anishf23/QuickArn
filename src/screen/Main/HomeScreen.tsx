@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getAuth } from '@react-native-firebase/auth';
@@ -7,8 +7,9 @@ import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import Shimmer from '../../components/Shimmer';
 import { useCustomAlert } from '../../components/CustomAlert';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
-import { getCachedNearbyJobs, getNearbyJobs, type NearbyJob } from '../../services/jobs';
+import { getCachedNearbyJobs, getNearbyJobs, getProviderCompletedJobs, type NearbyJob } from '../../services/jobs';
 import { cancelBidRequest, cancelProviderBidRequest, getOwnerBidRequests, getProviderBidRequests, respondToBidRequest, updateBidRequestProgress, type OwnerBidRequest } from '../../services/bids';
+import { createProviderReview, getProviderReviewStats } from '../../services/reviews';
 import { hp, rf } from '../../utils/responsive';
 
 type HomeScreenProps = {
@@ -27,12 +28,6 @@ type HomeScreenProps = {
   onWalletPress: () => void;
   onReassignRequest: (request: OwnerBidRequest) => void;
 };
-
-const stats = [
-  { icon: '₹', iconColor: '#18B978', iconSurface: '#E5FAEF', label: 'Total Earning', value: '₹1450' },
-  { icon: '▣', iconColor: brandColors.blue, iconSurface: '#F1E9FF', label: 'Jobs\nCompleted', value: '32' },
-  { icon: '★', iconColor: '#E5AC12', iconSurface: '#FFF8DA', label: 'Rating', value: '4.5' },
-];
 
 const formatDistance = (distanceKm: number) => distanceKm < 1
   ? `${Math.max(1, Math.round(distanceKm * 1000))} m away`
@@ -63,11 +58,23 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
   const [isLoadingBidRequests, setIsLoadingBidRequests] = useState(false);
   const [bidRequestMessage, setBidRequestMessage] = useState('');
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
+  const [reviewRequest, setReviewRequest] = useState<OwnerBidRequest | null>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [providerStats, setProviderStats] = useState({ completedJobs: 0, rating: 0, ratingCount: 0, totalEarnings: 0 });
+  const promptedReviewIds = useRef(new Set<string>());
   const fullAddress = address?.trim() || 'Choose your location';
   const areaName = fullAddress.split(',')[0]?.trim() || 'Select Location';
   const isProviderVerified = role === 'provider' && verificationStatus === 'accepted';
   const availabilityEnabled = isOnline && isProviderVerified;
   const currentUserId = getAuth().currentUser?.uid;
+  const stats = useMemo(() => [
+    { icon: '₹', iconColor: '#18B978', iconSurface: '#E5FAEF', label: 'Total Earning', value: `₹${providerStats.totalEarnings.toLocaleString('en-IN')}` },
+    { icon: '▣', iconColor: brandColors.blue, iconSurface: '#F1E9FF', label: 'Jobs Completed', value: `${providerStats.completedJobs}` },
+    { icon: '★', iconColor: '#E5AC12', iconSurface: '#FFF8DA', label: `Rating (${providerStats.ratingCount})`, value: providerStats.ratingCount ? providerStats.rating.toFixed(1) : '—' },
+  ], [providerStats]);
 
   useEffect(() => {
     let isMounted = true;
@@ -129,6 +136,34 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
       .catch(() => { if (isMounted) setBidRequests([]); });
     return () => { isMounted = false; };
   }, [role]);
+
+  useEffect(() => {
+    if (role !== 'provider' || verificationStatus !== 'accepted' || !currentUserId) {
+      setProviderStats({ completedJobs: 0, rating: 0, ratingCount: 0, totalEarnings: 0 });
+      return;
+    }
+    let isMounted = true;
+    Promise.all([getProviderCompletedJobs(), getProviderReviewStats(currentUserId)])
+      .then(([completedJobs, reviews]) => {
+        if (!isMounted) return;
+        const totalEarnings = completedJobs.reduce((total, job) => total + (job.agreedTotalAmount ?? (job.budgetType === 'hourly' ? job.budget * (job.agreedHours ?? 1) : job.budget)), 0);
+        setProviderStats({ completedJobs: completedJobs.length, rating: reviews.average, ratingCount: reviews.count, totalEarnings });
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, [currentUserId, role, verificationStatus]);
+
+  useEffect(() => {
+    if (role !== 'customer' || reviewRequest) return;
+    const completedRequest = bidRequests.find(request => request.status.toLowerCase() === 'completed' && !promptedReviewIds.current.has(request.requestId));
+    if (completedRequest) {
+      promptedReviewIds.current.add(completedRequest.requestId);
+      setReviewRating(0);
+      setReviewComment('');
+      setReviewError('');
+      setReviewRequest(completedRequest);
+    }
+  }, [bidRequests, reviewRequest, role]);
 
   const loadMoreJobs = () => {
     setVisibleJobCount(currentCount => Math.min(currentCount + 20, nearbyJobs.length));
@@ -250,6 +285,32 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
         },
       ],
     );
+  };
+
+  const submitReview = async () => {
+    if (!reviewRequest) return;
+    if (reviewRating < 1) {
+      setReviewError('Please select a star rating.');
+      return;
+    }
+    setReviewError('');
+    setIsSubmittingReview(true);
+    try {
+      await createProviderReview({
+        comment: reviewComment,
+        jobId: reviewRequest.jobId,
+        jobTitle: reviewRequest.jobTitle,
+        providerId: reviewRequest.bidderId,
+        providerName: reviewRequest.bidderName,
+        rating: reviewRating,
+      });
+      setReviewRequest(null);
+      showAlert('Review submitted', 'Thank you for rating your service provider.');
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : 'Unable to submit your review.');
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   return (
@@ -395,12 +456,30 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
                     <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => respondToRequest(request, false)} style={[styles.requestActionButton, styles.cancelRequestButton, { borderColor: '#DC2626' }]}><Text style={styles.cancelRequestText}>{requestActionId === request.requestId ? 'Updating...' : 'Reject'}</Text></Pressable>
                     <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => respondToRequest(request, true)} style={[styles.requestActionButton, { backgroundColor: '#15803D' }]}><Text style={styles.reassignRequestText}>Accept</Text></Pressable>
                   </View> : providerAction ? <View style={styles.requestActions}>
-                    <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => cancelProviderRequest(request)} style={[styles.requestActionButton, styles.cancelRequestButton, { borderColor: '#DC2626' }]}><Text style={styles.cancelRequestText}>{requestActionId === request.requestId ? 'Updating...' : 'Cancel Job'}</Text></Pressable>
+                    {request.status.toLowerCase() === 'accepted' ? <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => cancelProviderRequest(request)} style={[styles.requestActionButton, styles.cancelRequestButton, { borderColor: '#DC2626' }]}><Text style={styles.cancelRequestText}>{requestActionId === request.requestId ? 'Updating...' : 'Cancel Job'}</Text></Pressable> : null}
                     <Pressable accessibilityRole="button" disabled={requestActionId !== null} onPress={() => advanceProviderRequest(request, providerAction.nextStatus)} style={[styles.requestActionButton, { backgroundColor: colors.primary, opacity: requestActionId ? 0.7 : 1 }]}><Text style={styles.reassignRequestText}>{providerAction.label}</Text></Pressable>
                   </View> : null}
                 </View>;
               }}
             />}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal animationType="fade" transparent visible={reviewRequest !== null} onRequestClose={() => { if (!isSubmittingReview) setReviewRequest(null); }}>
+        <View style={styles.reviewBackdrop}>
+          <View style={[styles.reviewCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.reviewTitle, { color: colors.text }]}>Rate Your Provider</Text>
+            <Text style={[styles.reviewSubtitle, { color: colors.textMuted }]}>How was your experience with {reviewRequest?.bidderName}?</Text>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map(star => <Pressable key={star} accessibilityLabel={`${star} stars`} accessibilityRole="button" onPress={() => { setReviewRating(star); setReviewError(''); }} style={styles.starButton}><Text style={[styles.starText, { color: star <= reviewRating ? '#F59E0B' : '#CBD5E1' }]}>★</Text></Pressable>)}
+            </View>
+            <TextInput multiline placeholder="Write a review (optional)" placeholderTextColor={colors.textMuted} textAlignVertical="top" value={reviewComment} onChangeText={setReviewComment} style={[styles.reviewInput, { borderColor: reviewError ? '#DC2626' : '#E0D6ED', color: colors.text }]} />
+            {reviewError ? <Text style={styles.reviewError}>{reviewError}</Text> : null}
+            <View style={styles.reviewActions}>
+              <Pressable accessibilityRole="button" disabled={isSubmittingReview} onPress={() => setReviewRequest(null)} style={[styles.reviewButton, styles.reviewCancelButton, { borderColor: colors.primary }]}><Text style={[styles.reviewCancelText, { color: colors.primary }]}>Later</Text></Pressable>
+              <Pressable accessibilityRole="button" disabled={isSubmittingReview} onPress={submitReview} style={[styles.reviewButton, { backgroundColor: colors.primary, opacity: isSubmittingReview ? 0.7 : 1 }]}><Text style={styles.reviewSubmitText}>{isSubmittingReview ? 'Submitting...' : 'Submit Review'}</Text></Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -478,6 +557,17 @@ const styles = StyleSheet.create({
   requestStatusBadge: { borderRadius: 7, flexShrink: 0, paddingHorizontal: 7, paddingVertical: 3 },
   requestStatusText: { fontSize: rf(8), fontWeight: '800', textTransform: 'capitalize' },
   requestTitleRow: { alignItems: 'flex-start', flexDirection: 'row' },
+  reviewActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  reviewBackdrop: { alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.5)', flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+  reviewButton: { alignItems: 'center', borderRadius: 8, flex: 1, height: 42, justifyContent: 'center' },
+  reviewCancelButton: { borderWidth: 1 },
+  reviewCancelText: { fontSize: rf(11), fontWeight: '800' },
+  reviewCard: { borderRadius: 16, elevation: 10, maxWidth: 360, padding: 20, shadowColor: '#0F172A', shadowOffset: { height: 7, width: 0 }, shadowOpacity: 0.22, shadowRadius: 16, width: '100%' },
+  reviewError: { color: '#DC2626', fontSize: rf(9), fontWeight: '600', marginTop: 5 },
+  reviewInput: { borderRadius: 8, borderWidth: 1, fontSize: rf(11), height: 90, marginTop: 12, padding: 10 },
+  reviewSubmitText: { color: '#FFFFFF', fontSize: rf(11), fontWeight: '800' },
+  reviewSubtitle: { fontSize: rf(11), lineHeight: rf(16), marginTop: 7, textAlign: 'center' },
+  reviewTitle: { fontSize: rf(18), fontWeight: '800', textAlign: 'center' },
   safeArea: { flex: 1 },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, marginTop: hp(2.4), paddingHorizontal: 2 },
   sectionTitle: { fontSize: rf(16), fontWeight: '800' },
@@ -488,6 +578,9 @@ const styles = StyleSheet.create({
   statValue: { fontSize: rf(14), fontWeight: '800', marginTop: 1 },
   statsRow: { flexDirection: 'row', marginHorizontal: -4, marginTop: 13 },
   shimmerAvatar: { borderRadius: 22, height: 44, width: 44 },
+  starButton: { paddingHorizontal: 4, paddingVertical: 3 },
+  starText: { fontSize: rf(29) },
+  starsRow: { alignSelf: 'center', flexDirection: 'row', marginTop: 16 },
   shimmerCopy: { flex: 1, marginLeft: 12 },
   shimmerJobCard: { alignItems: 'center', borderRadius: 12, flexDirection: 'row', marginBottom: 13, padding: 12 },
   shimmerLine: { borderRadius: 4, height: 10, marginTop: 8, width: '76%' },
