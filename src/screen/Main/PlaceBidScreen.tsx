@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react
 
 import { useCustomAlert } from '../../components/CustomAlert';
 import { createBid } from '../../services/bids';
+import { createOrGetDirectChat, type ChatConversation } from '../../services/chats';
 import type { PostedJob } from '../../services/jobs';
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
@@ -13,7 +14,7 @@ import PostJobHeader from './components/PostJobHeader';
 type PlaceBidScreenProps = {
   job: PostedJob | null;
   onBack: () => void;
-  onGoToChat: () => void;
+  onGoToChat: (chat: ChatConversation) => void;
   onGoHome: () => void;
 };
 
@@ -37,6 +38,7 @@ function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenPro
   const [availableDateTime, setAvailableDateTime] = useState(() => new Date());
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
   const [expectedResponseTimeMinutes, setExpectedResponseTimeMinutes] = useState(30);
+  const [isStartingChat, setIsStartingChat] = useState(false);
 
   const onDateTimeChange = (_event: DateTimePickerEvent, value?: Date) => {
     setPickerMode(null);
@@ -64,6 +66,20 @@ function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenPro
       showAlert('Unable to submit bid', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const goToChat = async () => {
+    if (!job || isStartingChat) return;
+    setIsStartingChat(true);
+    try {
+      const chatId = await createOrGetDirectChat(job.ownerId, job.pickupDetails.name || 'Job owner', { id: job.jobId || job.id, title: job.title });
+      setIsAccepted(false);
+      onGoToChat({ chatId, jobId: job.jobId || job.id, jobTitle: job.title, lastMessage: '', otherUserId: job.ownerId, otherUserName: job.pickupDetails.name || 'Job owner' });
+    } catch (error) {
+      showAlert('Unable to start chat', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setIsStartingChat(false);
     }
   };
 
@@ -161,8 +177,8 @@ function PlaceBidScreen({ job, onBack, onGoHome, onGoToChat }: PlaceBidScreenPro
             <Pressable accessibilityRole="button" onPress={onGoHome} style={[styles.modalPrimaryButton, { backgroundColor: colors.primary }]}>
               <Text style={styles.modalPrimaryText}>Back To Home</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" onPress={onGoToChat} style={[styles.modalSecondaryButton, { borderColor: colors.primary }]}>
-              <Text style={[styles.modalSecondaryText, { color: colors.primary }]}>Go to Chat</Text>
+            <Pressable accessibilityRole="button" disabled={isStartingChat} onPress={goToChat} style={[styles.modalSecondaryButton, { borderColor: colors.primary, opacity: isStartingChat ? 0.65 : 1 }]}>
+              <Text style={[styles.modalSecondaryText, { color: colors.primary }]}>{isStartingChat ? 'Opening Chat...' : 'Go to Chat'}</Text>
             </Pressable>
           </View>
         </View>

@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useCustomAlert } from '../../components/CustomAlert';
 import { getProviderBidStats } from '../../services/bids';
+import { getProviderReviewStats } from '../../services/reviews';
 import { useAppTheme } from '../../theme/AppTheme';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
 import { getCachedUserProfile, type StoredUserProfile } from '../../services/firebaseUser';
@@ -14,6 +15,7 @@ const profileItems = [
   { icon: '₹', label: 'My Earnings' },
   { icon: '◇', label: 'My Bids' },
   { icon: '◇', label: 'My Jobs' },
+  { icon: '★', label: 'My Reviews' },
   { icon: '▤', label: 'Wallet' },
   { icon: '◉', label: 'Language' },
   { icon: '⚙', label: 'Settings' },
@@ -46,17 +48,19 @@ type ProfileScreenProps = {
   onLanguage: () => void;
   onMyBids: () => void;
   onMyJobs: () => void;
+  onMyReviews: () => void;
   onMyPortfolio: () => void;
   onWallet: () => void;
   onVerification: () => void;
   onLogout: () => void;
 };
 
-function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPortfolio, onWallet, onVerification, onLogout }: ProfileScreenProps) {
+function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyReviews, onMyPortfolio, onWallet, onVerification, onLogout }: ProfileScreenProps) {
   const { colors } = useAppTheme();
   const { showAlert } = useCustomAlert();
   const [profile, setProfile] = useState<StoredUserProfile | null>(null);
   const [bidStats, setBidStats] = useState({ accepted: 0, total: 0 });
+  const [reviewStats, setReviewStats] = useState({ average: 0, count: 0 });
 
   useEffect(() => {
     getCachedUserProfile().then(setProfile).catch(() => {});
@@ -69,6 +73,14 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
     }
 
     getProviderBidStats(profile.uid).then(setBidStats).catch(() => {});
+  }, [profile?.role, profile?.uid]);
+
+  useEffect(() => {
+    if (profile?.role !== 'provider' || !profile.uid) {
+      setReviewStats({ average: 0, count: 0 });
+      return;
+    }
+    getProviderReviewStats(profile.uid).then(setReviewStats).catch(() => {});
   }, [profile?.role, profile?.uid]);
 
   const fullName = profile?.fullName?.trim() || 'Your Profile';
@@ -96,7 +108,7 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
           <Text style={[styles.name, { color: colors.text }]}>{fullName}</Text>
           <View style={styles.ratingRow}>
             <Text style={styles.star}>★</Text>
-            <Text style={[styles.ratingText, { color: colors.textMuted }]}>4.5 (11 Reviews)</Text>
+            <Text style={[styles.ratingText, { color: colors.textMuted }]}>{reviewStats.average.toFixed(1)} ({reviewStats.count} {reviewStats.count === 1 ? 'Review' : 'Reviews'})</Text>
           </View>
           <Pressable accessibilityRole="button" onPress={onEditProfile} style={[styles.editButton, { borderColor: colors.primary }]}>
             <Text style={[styles.editText, { color: colors.primary }]}>Edit Profile</Text>
@@ -153,7 +165,10 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
       )}
 
       <View style={styles.menu}>
-        {profileItems.filter(item => !isCustomer || (item.label !== 'My Earnings' && item.label !== 'My Bids')).map(item => (
+        {profileItems.filter(item => {
+          if (item.label === 'My Reviews' && profile?.role !== 'provider') return false;
+          return !isCustomer || (item.label !== 'My Earnings' && item.label !== 'My Bids');
+        }).map(item => (
           <Pressable
             key={item.label}
             accessibilityRole="button"
@@ -162,6 +177,8 @@ function ProfileScreen({ onEditProfile, onLanguage, onMyBids, onMyJobs, onMyPort
                 ? onMyBids
                 : item.label === 'My Jobs'
                 ? onMyJobs
+                : item.label === 'My Reviews'
+                ? onMyReviews
                 : item.label === 'My Earnings'
                 ? onMyPortfolio
                 : item.label === 'Wallet'

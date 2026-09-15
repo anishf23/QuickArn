@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getAuth } from '@react-native-firebase/auth';
@@ -7,9 +7,9 @@ import { brandColors, useAppTheme } from '../../theme/AppTheme';
 import Shimmer from '../../components/Shimmer';
 import { useCustomAlert } from '../../components/CustomAlert';
 import { LocalizedText as Text } from '../../localization/AppLocalization';
-import { getCachedNearbyJobs, getNearbyJobs, getProviderCompletedJobs, type NearbyJob } from '../../services/jobs';
+import { getCachedNearbyJobs, getNearbyJobs, getProviderCompletedJobs, invalidateJobCaches, type NearbyJob } from '../../services/jobs';
 import { cancelBidRequest, cancelProviderBidRequest, getOwnerBidRequests, getProviderBidRequests, respondToBidRequest, updateBidRequestProgress, type OwnerBidRequest } from '../../services/bids';
-import { createProviderReview, getProviderReviewStats } from '../../services/reviews';
+import { createProviderReview, getProviderReviewStats, hasCurrentUserReviewedJob } from '../../services/reviews';
 import { hp, rf } from '../../utils/responsive';
 
 type HomeScreenProps = {
@@ -51,6 +51,7 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
   const cachedJobs = getCachedNearbyJobs(latitude, longitude, 20);
   const [nearbyJobs, setNearbyJobs] = useState<NearbyJob[]>(() => cachedJobs ?? []);
   const [isLoadingJobs, setIsLoadingJobs] = useState(() => !cachedJobs);
+  const [isRefreshingJobs, setIsRefreshingJobs] = useState(false);
   const [jobsMessage, setJobsMessage] = useState('');
   const [visibleJobCount, setVisibleJobCount] = useState(20);
   const [isBidRequestModalVisible, setIsBidRequestModalVisible] = useState(false);
@@ -156,17 +157,45 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
   useEffect(() => {
     if (role !== 'customer' || reviewRequest) return;
     const completedRequest = bidRequests.find(request => request.status.toLowerCase() === 'completed' && !promptedReviewIds.current.has(request.requestId));
-    if (completedRequest) {
-      promptedReviewIds.current.add(completedRequest.requestId);
-      setReviewRating(0);
-      setReviewComment('');
-      setReviewError('');
-      setReviewRequest(completedRequest);
-    }
+    if (!completedRequest) return;
+
+    let active = true;
+    promptedReviewIds.current.add(completedRequest.requestId);
+    hasCurrentUserReviewedJob(completedRequest.jobId)
+      .then(hasReviewed => {
+        if (!active || hasReviewed) return;
+        setReviewRating(0);
+        setReviewComment('');
+        setReviewError('');
+        setReviewRequest(completedRequest);
+      })
+      .catch(() => {
+        // Do not show a duplicate review prompt when review status cannot be checked.
+      });
+    return () => { active = false; };
   }, [bidRequests, reviewRequest, role]);
 
   const loadMoreJobs = () => {
     setVisibleJobCount(currentCount => Math.min(currentCount + 20, nearbyJobs.length));
+  };
+
+  const refreshJobs = async () => {
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      setJobsMessage('Choose your location to see nearby jobs.');
+      return;
+    }
+    setIsRefreshingJobs(true);
+    setJobsMessage('');
+    try {
+      invalidateJobCaches();
+      const jobs = await getNearbyJobs(latitude, longitude, 20);
+      setNearbyJobs(jobs);
+      setVisibleJobCount(20);
+    } catch {
+      setJobsMessage('Unable to refresh nearby jobs. Please try again.');
+    } finally {
+      setIsRefreshingJobs(false);
+    }
   };
 
   const hasActiveBidRequest = bidRequests.some(request => role === 'provider'
@@ -342,6 +371,7 @@ function HomeScreen({ address, isOnline, latitude, longitude, role, verification
             keyExtractor={job => job.id}
             contentContainerStyle={styles.listContent}
             initialNumToRender={20}
+            refreshControl={<RefreshControl colors={[colors.primary]} onRefresh={refreshJobs} refreshing={isRefreshingJobs} tintColor={colors.primary} />}
             ListEmptyComponent={isLoadingJobs ? (
               <View style={styles.shimmerList}>
                 {[0, 1, 2,3,4,5,6,7,8].map(item => <View key={item} style={[styles.shimmerJobCard, { backgroundColor: colors.card }]}>

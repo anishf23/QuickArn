@@ -31,6 +31,7 @@ export type StoredUserProfile = {
   gender?: string;
   fcmToken?: string;
   isActive?: boolean;
+  isChatOnline?: boolean;
   isOnline?: boolean;
   isProfileCompleted?: boolean;
   isVerified?: boolean;
@@ -190,6 +191,13 @@ export async function getExistingUserProfile(uid: string) {
   const profile = { ...(snapshot.data() as StoredUserProfile), uid };
   await cacheUserProfile(profile);
   return profile;
+}
+
+/** Loads a user profile for display without replacing the signed-in user's local cache. */
+export async function getUserProfileById(uid: string): Promise<StoredUserProfile | null> {
+  await ensureInternetConnection();
+  const snapshot = await getDoc(userDocument(uid));
+  return snapshot.exists() ? { ...(snapshot.data() as StoredUserProfile), uid } : null;
 }
 
 /** Listens to the signed-in user's Firestore profile for verification changes. */

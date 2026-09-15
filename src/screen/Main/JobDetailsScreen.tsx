@@ -19,6 +19,7 @@ type JobDetailsScreenProps = {
   onBack: () => void;
   onCloseJob?: () => void;
   onEditJob?: () => void;
+  onOpenUserProfile?: (userId: string) => void;
   onWalletTopUp?: () => void;
   onPlaceBid: () => void;
 };
@@ -45,7 +46,15 @@ const formatJobStatus = (status?: string) => {
   return `${status.charAt(0).toUpperCase()}${status.slice(1).toLowerCase()}`;
 };
 
-function JobDetailsScreen({ job, isOwner = false, role, isOnline = false, verificationStatus, onBack, onCloseJob, onEditJob, onWalletTopUp, onPlaceBid }: JobDetailsScreenProps) {
+const initials = (name: string) => name
+  .split(' ')
+  .filter(Boolean)
+  .slice(0, 2)
+  .map(part => part[0])
+  .join('')
+  .toUpperCase();
+
+function JobDetailsScreen({ job, isOwner = false, role, isOnline = false, verificationStatus, onBack, onCloseJob, onEditJob, onOpenUserProfile, onWalletTopUp, onPlaceBid }: JobDetailsScreenProps) {
   const { colors } = useAppTheme();
   const { showAlert } = useCustomAlert();
   const title = job?.title ?? 'Need Delivery Boy for Documents';
@@ -242,6 +251,9 @@ function JobDetailsScreen({ job, isOwner = false, role, isOnline = false, verifi
               <Text style={[styles.emptyBidsText, { color: colors.textMuted }]}>No bids have been placed yet.</Text>
             ) : bids.map(bid => (
               <View key={bid.bidId} style={styles.bidRow}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`View ${bid.bidderName}'s profile`} hitSlop={5} onPress={() => onOpenUserProfile?.(bid.bidderId)} style={styles.bidderAvatar}>
+                  <Text style={styles.bidderAvatarText}>{initials(bid.bidderName)}</Text>
+                </Pressable>
                 <View style={styles.bidderCopy}>
                   <Text style={[styles.bidderName, { color: colors.text }]}>{bid.bidderName}</Text>
                   {bid.bidMessage ? <Text numberOfLines={2} style={[styles.bidMessage, { color: colors.textMuted }]}>{bid.bidMessage}</Text> : null}
@@ -348,6 +360,8 @@ const styles = StyleSheet.create({
   bidStatusLine: { alignItems: 'center', flexDirection: 'row', marginTop: 5 },
   bidStatusText: { fontSize: rf(8), fontWeight: '800', textTransform: 'capitalize' },
   bidText: { color: '#FFFFFF', fontSize: rf(13), fontWeight: '800' },
+  bidderAvatar: { alignItems: 'center', backgroundColor: '#E5E0FF', borderRadius: 18, height: 36, justifyContent: 'center', marginRight: 10, width: 36 },
+  bidderAvatarText: { color: '#665C78', fontSize: rf(11), fontWeight: '800' },
   bidderCopy: { flex: 1 },
   bidderName: { fontSize: rf(12), fontWeight: '800' },
   bidsLoading: { alignItems: 'center', justifyContent: 'center', minHeight: 62 },
