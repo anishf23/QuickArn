@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { LocalizedText as Text } from '../localization/AppLocalization';
-import { subscribeToAuthState } from '../services/firebaseUser';
+import { startFcmTokenSync, subscribeToAuthState } from '../services/firebaseUser';
 import { brandColors, useAppTheme } from '../theme/AppTheme';
 import { rf } from '../utils/responsive';
 
@@ -31,6 +31,10 @@ function SplashScreen({ navigation }: Props) {
     };
 
     const unsubscribe = subscribeToAuthState(user => {
+      if (user) {
+        // Refresh the stored FCM token on every signed-in app launch.
+        startFcmTokenSync(user.uid);
+      }
       navigationTimer = setTimeout(() => goToNextScreen(Boolean(user)), 1800);
     });
 

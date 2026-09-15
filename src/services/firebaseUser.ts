@@ -190,6 +190,10 @@ export async function getExistingUserProfile(uid: string) {
 
   const profile = { ...(snapshot.data() as StoredUserProfile), uid };
   await cacheUserProfile(profile);
+  // Keep the device token current whenever an existing user signs in.
+  // This is intentionally non-blocking: a notification permission or network
+  // problem must never prevent login.
+  startFcmTokenSync(uid);
   return profile;
 }
 
@@ -254,14 +258,39 @@ export async function updateCurrentUser(fields: Record<string, unknown>) {
   });
 }
 
+async function syncFcmToken(uid: string, token: string) {
+  if (!token) {
+    return;
+  }
+
+  await ensureInternetConnection();
+  await setDoc(userDocument(uid), {
+    fcmToken: token,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+/**
+ * Stores the current device FCM token and keeps it current after Firebase
+ * rotates it. This is safe to call repeatedly; the previous refresh listener
+ * is always removed first.
+ */
 export function startFcmTokenSync(uid: string) {
   unsubscribeTokenRefresh?.();
-  unsubscribeTokenRefresh = onTokenRefresh(getMessaging(), token => {
-    ensureInternetConnection()
-      .then(() => setDoc(userDocument(uid), {
-        fcmToken: token,
-        updatedAt: serverTimestamp(),
-      }, { merge: true }))
+  unsubscribeTokenRefresh = null;
+
+  try {
+    unsubscribeTokenRefresh = onTokenRefresh(getMessaging(), token => {
+      syncFcmToken(uid, token).catch(() => {});
+    });
+
+    // onTokenRefresh only handles future rotations. Sync the token now too,
+    // so a token changed while the app was closed is also saved to `users`.
+    getFcmToken()
+      .then(token => syncFcmToken(uid, token))
       .catch(() => {});
-  });
+  } catch {
+    // A stale development build can be missing the native messaging module.
+    // Push setup must not crash the app in that case.
+  }
 }
